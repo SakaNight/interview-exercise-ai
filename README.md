@@ -76,4 +76,4 @@ My domain was suspended and I didn’t get any notice. How can I reactivate it?
 - We expect this to take around 1–2 focused days of work.
 - Once complete:
   - Push your forked repo to GitHub
-  - Email the repository link to [your email] with subject: AI Coding Challenge Submission – [Your Full Name]
+  - Submit the repository link through the portal in the original email.
