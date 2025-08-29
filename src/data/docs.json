@@ -1,0 +1,162 @@
+[
+  {
+    "id": "doc_001",
+    "title": "Domain Suspension Guidelines",
+    "section": "Reasons for Suspension",
+    "content": "Domains may be suspended due to inaccurate WHOIS info or policy violations. To reactivate, update your WHOIS details and contact support.",
+    "tags": ["suspension", "whois", "abuse"],
+    "ref": "Domain Suspension Guidelines - Reasons for Suspension (#doc_001)"
+  },
+  {
+    "id": "doc_002",
+    "title": "Domain Renewal and Expiry",
+    "section": "Renewal Grace Period",
+    "content": "After a domain expires, most registries provide a 30-day grace period to renew. If not renewed, it may enter redemption with higher fees.",
+    "tags": ["renewal", "billing"],
+    "ref": "Domain Renewal and Expiry - Renewal Grace Period (#doc_002)"
+  },
+  {
+    "id": "doc_003",
+    "title": "DNS Configuration Troubleshooting",
+    "section": "Common DNS Issues",
+    "content": "DNS propagation can take up to 48 hours globally. If your website isn't loading, verify your A records point to the correct IP address and nameservers are responding.",
+    "tags": ["dns", "propagation", "technical"],
+    "ref": "DNS Configuration Troubleshooting - Common DNS Issues (#doc_003)"
+  },
+  {
+    "id": "doc_004",
+    "title": "Domain Transfer Authorization",
+    "section": "Transfer Requirements",
+    "content": "To transfer a domain, ensure it's unlocked, obtain the EPP/Auth code, and verify the domain hasn't been transferred or registered within the last 60 days.",
+    "tags": ["transfer", "authorization", "epp"],
+    "ref": "Domain Transfer Authorization - Transfer Requirements (#doc_004)"
+  },
+  {
+    "id": "doc_005",
+    "title": "WHOIS Privacy Protection",
+    "section": "Privacy Services",
+    "content": "Privacy protection masks personal information in WHOIS databases. This service can be enabled/disabled through your domain provider, though some TLDs don't support privacy.",
+    "tags": ["whois", "privacy", "protection"],
+    "ref": "WHOIS Privacy Protection - Privacy Services (#doc_005)"
+  },
+  {
+    "id": "doc_006",
+    "title": "Email Forwarding Setup",
+    "section": "Configuration Steps",
+    "content": "Set up email forwarding by creating MX records pointing to your provider's mail servers. Configure catch-all forwarding or specific address redirections through your DNS panel.",
+    "tags": ["email", "forwarding", "mx-records"],
+    "ref": "Email Forwarding Setup - Configuration Steps (#doc_006)"
+  },
+  {
+    "id": "doc_007",
+    "title": "Domain Lock Status",
+    "section": "Transfer Protection",
+    "content": "Domain lock prevents unauthorized transfers. While locked, transfer requests will be denied. Contact your provider to unlock when planning legitimate transfers.",
+    "tags": ["lock", "security", "transfer"],
+    "ref": "Domain Lock Status - Transfer Protection (#doc_007)"
+  },
+  {
+    "id": "doc_008",
+    "title": "Redemption Period Recovery",
+    "section": "Expired Domain Recovery",
+    "content": "Domains in redemption can only be recovered by the original owner within 30 days. Recovery fees are typically $100-200 above standard renewal costs.",
+    "tags": ["redemption", "recovery", "expired"],
+    "ref": "Redemption Period Recovery - Expired Domain Recovery (#doc_008)"
+  },
+  {
+    "id": "doc_009",
+    "title": "Subdomain Management",
+    "section": "Creating Subdomains",
+    "content": "Create subdomains by adding A, CNAME, or other DNS records with the subdomain prefix. Examples: 'www' for www.example.com or 'mail' for mail.example.com.",
+    "tags": ["subdomain", "dns", "records"],
+    "ref": "Subdomain Management - Creating Subdomains (#doc_009)"
+  },
+  {
+    "id": "doc_010",
+    "title": "SSL Certificate Integration",
+    "section": "Certificate Installation",
+    "content": "SSL certificates encrypt data between browsers and servers. Install certificates through your hosting panel or use DNS validation for domain-validated certificates.",
+    "tags": ["ssl", "certificate", "security"],
+    "ref": "SSL Certificate Integration - Certificate Installation (#doc_010)"
+  },
+  {
+    "id": "doc_011",
+    "title": "Nameserver Changes",
+    "section": "DNS Management",
+    "content": "Update nameservers to point your domain to different hosting providers. Changes typically propagate within 24-48 hours but can take up to 72 hours globally.",
+    "tags": ["nameservers", "dns", "hosting"],
+    "ref": "Nameserver Changes - DNS Management (#doc_011)"
+  },
+  {
+    "id": "doc_012",
+    "title": "Domain Parking Services",
+    "section": "Monetization Options",
+    "content": "Park unused domains to display ads and generate revenue. Parking services provide templates and handle ad placement, splitting revenue with domain owners.",
+    "tags": ["parking", "monetization", "revenue"],
+    "ref": "Domain Parking Services - Monetization Options (#doc_012)"
+  },
+  {
+    "id": "doc_013",
+    "title": "ICANN Transfer Policy",
+    "section": "Transfer Regulations",
+    "content": "ICANN requires registrars to process legitimate transfer requests within 5 days. Transfers can be denied for valid reasons like domain locks or invalid auth codes.",
+    "tags": ["icann", "transfer", "policy"],
+    "ref": "ICANN Transfer Policy - Transfer Regulations (#doc_013)"
+  },
+  {
+    "id": "doc_014",
+    "title": "Bulk Domain Management",
+    "section": "Portfolio Administration",
+    "content": "Manage multiple domains efficiently using bulk update tools for nameservers, contacts, and renewals. Most providers offer CSV import/export for large portfolios.",
+    "tags": ["bulk", "portfolio", "management"],
+    "ref": "Bulk Domain Management - Portfolio Administration (#doc_014)"
+  },
+  {
+    "id": "doc_015",
+    "title": "Domain Auction Participation",
+    "section": "Expired Domain Auctions",
+    "content": "When domains aren't renewed after redemption, they may go to auction. Register with auction platforms and verify funds before bidding on expired domains.",
+    "tags": ["auction", "expired", "bidding"],
+    "ref": "Domain Auction Participation - Expired Domain Auctions (#doc_015)"
+  },
+  {
+    "id": "doc_016",
+    "title": "International Domain Extensions",
+    "section": "ccTLD Requirements",
+    "content": "Country code TLDs (ccTLDs) like .uk, .de, .jp have specific registration requirements including residency restrictions or local presence requirements.",
+    "tags": ["cctld", "international", "requirements"],
+    "ref": "International Domain Extensions - ccTLD Requirements (#doc_016)"
+  },
+  {
+    "id": "doc_017",
+    "title": "Domain Dispute Resolution",
+    "section": "UDRP Process",
+    "content": "Trademark disputes can be resolved through UDRP (Uniform Domain-Name Dispute-Resolution Policy). File complaints with approved providers like WIPO for cybersquatting cases.",
+    "tags": ["dispute", "udrp", "trademark"],
+    "ref": "Domain Dispute Resolution - UDRP Process (#doc_017)"
+  },
+  {
+    "id": "doc_018",
+    "title": "Auto-Renewal Configuration",
+    "section": "Billing Automation",
+    "content": "Enable auto-renewal to prevent accidental domain expiration. Ensure payment methods are current and consider setting up renewal notifications 60 days before expiry.",
+    "tags": ["auto-renewal", "billing", "notifications"],
+    "ref": "Auto-Renewal Configuration - Billing Automation (#doc_018)"
+  },
+  {
+    "id": "doc_019",
+    "title": "Registry Maintenance Windows",
+    "section": "Service Interruptions",
+    "content": "Registry maintenance may temporarily affect domain modifications. Most registries schedule maintenance during low-traffic hours and provide advance notice.",
+    "tags": ["maintenance", "registry", "downtime"],
+    "ref": "Registry Maintenance Windows - Service Interruptions (#doc_019)"
+  },
+  {
+    "id": "doc_020",
+    "title": "Domain History and Backorders",
+    "section": "Acquisition Strategies",
+    "content": "Research domain history using archive tools before purchasing. Place backorders for expiring domains you want to acquire when they become available.",
+    "tags": ["history", "backorders", "acquisition"],
+    "ref": "Domain History and Backorders - Acquisition Strategies (#doc_020)"
+  }
+]
