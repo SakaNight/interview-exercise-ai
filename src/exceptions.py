@@ -13,9 +13,16 @@ class DocumentNotFoundError(RAGError):
 
 class DocumentFormatError(RAGError):
     # Raised when a document JSON has missing required fields
-    def __init__(self, doc_id: str):
-        super().__init__(f"Invalid document format for id={doc_id}", "DOCUMENT_FORMAT_ERROR")
-        self.doc_id = doc_id
+    def __init__(self, where: str):
+        super().__init__(f"Invalid document format: {where}", "DOCUMENT_FORMAT_ERROR")
+        self.where = where
+
+#  ==== Query-related errors =====
+class QueryFormatError(RAGError):
+    # Raised when a query is empty
+    def __init__(self, reason: str = "empty query"):
+        super().__init__(f"Invalid query format: {reason}", "QUERY_FORMAT_ERROR")
+        self.reason = reason
 
 # ===== Index-related errors ===== 
 class IndexNotReadyError(RAGError):

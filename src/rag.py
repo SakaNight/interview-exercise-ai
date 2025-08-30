@@ -7,7 +7,7 @@ import os
 from typing import List, Dict, Tuple
 import logging
 import sys
-from exceptions import IndexNotReadyError, DocumentFormatError, DocumentNotFoundError
+from exceptions import IndexNotReadyError, DocumentFormatError, DocumentNotFoundError, QueryFormatError
 
 logger = logging.getLogger(__name__)
 
@@ -172,9 +172,9 @@ class RAGPipeline:
             raise IndexNotReadyError()
         
         if not query or not query.strip():
-            logger.error("Empty query provided to search()")
-            raise DocumentFormatError("empty query")
-            
+            logger.warning("Empty query provided to search()")
+            raise QueryFormatError()
+
         k = k or self.top_k
         
         # Create query embedding
