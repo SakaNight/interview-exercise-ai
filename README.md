@@ -19,7 +19,8 @@ The combination is light-weighted, high-performance, integrated with OpenAPI, su
 │   ├── scripts
 │   │   └── prepare_index.py
 │   ├── tests
-│   │   └── __init__.py
+│   │   ├── __init__.py
+│   │   └── rag_tests.py
 │   ├── llm.py
 │   ├── main.py
 │   ├── models.py
@@ -34,6 +35,9 @@ The combination is light-weighted, high-performance, integrated with OpenAPI, su
 
 ## Setup
 ### Local
+```bash
+pip install sentence-transformers faiss-cpu numpy pydantic-settings
+```
 ### API 
 ### Docker
 
