@@ -39,7 +39,7 @@ class LLMModel:
         self.frequency_penalty = settings.llm_frequency_penalty
         self.presence_penalty = settings.llm_presence_penalty
         
-        # Initialize client based on provider
+        # Initialize client based on provider (default: openai)
         if self.provider == "openai":
             self.client = OpenAI(
                 api_key=settings.api_key,
@@ -48,16 +48,14 @@ class LLMModel:
         else:
             raise LLMProviderError(f"Unsupported LLM provider: {self.provider}")
     
-    def generate(self, prompt: str, max_tokens: Optional[int] = None) -> str:
+    def generate(self, prompt: str) -> str:
         # Generate raw text response from prompt
         try:
             response = self.client.chat.completions.create(
                 model=self.model_name,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ],
+                messages=[{"role": "user", "content": prompt}],
                 temperature=self.temperature,
-                max_tokens=max_tokens or self.max_tokens,
+                max_tokens=self.max_tokens,
                 top_p=self.top_p,
                 frequency_penalty=self.frequency_penalty,
                 presence_penalty=self.presence_penalty
