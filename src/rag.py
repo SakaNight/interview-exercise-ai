@@ -5,24 +5,29 @@ import faiss
 import json
 import os
 from typing import List, Dict, Tuple
+import logging
+import sys
+from exceptions import IndexNotReadyError, DocumentFormatError, DocumentNotFoundError
+
+logger = logging.getLogger(__name__)
 
 class EmbeddingModel:
     # Enable embedding model to be switched out, set model_name in settings.py
     def __init__(self, model_name: str = None):
         self.model_name = model_name or settings.model_name
         self.model = SentenceTransformer(self.model_name)
-        # print(f"Initialized embedding model: {self.model_name}")
+        logger.info(f"Initialized embedding model: {self.model_name}")
     
     # Encode text to embeddings
     def encode_text(self, texts: List[str], convert_to_numpy=True) -> np.ndarray:
         embeddings = self.model.encode(texts, convert_to_numpy=convert_to_numpy)
-        # print(f"Created embeddings with shape: {embeddings.shape}")
+        logger.debug(f"Created embeddings with shape: {embeddings.shape}")
         return embeddings
     
     # Encode query for retrieval
     def encode_query(self, query: str) -> np.ndarray:
         query_embeddings = self.model.encode([query], convert_to_numpy=True)
-        # print(f"Created query embedding with shape: {query_embeddings.shape}")
+        logger.debug(f"Created query embedding with shape: {query_embeddings.shape}")
         return query_embeddings
 
 class RAGPipeline:    
@@ -65,11 +70,19 @@ class RAGPipeline:
         try:
             with open(docs_path, 'r', encoding='utf-8') as f:
                 self.documents = json.load(f)
-            print(f"Loaded {len(self.documents)} documents from {docs_path}")
+            for i, doc in enumerate(self.documents):
+                required = ("id", "title", "section", "content")
+                missing = [k for k in required if k not in doc or not str(doc[k]).strip()]
+                if missing:
+                    raise DocumentFormatError(f"doc index {i} missing {missing}")
+                doc.setdefault("ref", f"{doc['title']} - {doc['section']} (#{doc['id']})")
+
+            logger.info("Loaded %d documents from %s", len(self.documents), docs_path)
             return self.documents
         except FileNotFoundError:
-            print(f"Error: Documents file not found at {docs_path}")
-            return []
+            raise DocumentNotFoundError(docs_path)
+        except json.JSONDecodeError:
+            raise DocumentFormatError(docs_path)
     
     def prepare_documents(self) -> List[str]:
         prepared_texts = []
@@ -85,7 +98,7 @@ class RAGPipeline:
         embeddings = self.embedding_model.encode_text(texts)
         embeddings = embeddings.astype("float32", copy=False) # FAISS needs float32
         faiss.normalize_L2(embeddings) # Normalize embedding for cosine similarity
-        # print(f"Created embeddings with shape: {embeddings.shape}")
+        logger.debug(f"Created embeddings with shape: {embeddings.shape}")
         return embeddings
 
     # Build FAISS index from embeddings
@@ -93,7 +106,7 @@ class RAGPipeline:
         dimension = embeddings.shape[1]
         self.index = faiss.IndexFlatIP(dimension) # Inner product for cosine similarity
         self.index.add(embeddings)
-        # print(f"FAISS index built with {self.index.ntotal} vectors")
+        logger.info(f"FAISS index built with {self.index.ntotal} vectors")
     
     # Save FAISS index to file
     def save_index(self, index_path: str = None) -> bool:
@@ -102,10 +115,10 @@ class RAGPipeline:
         
         try:
             faiss.write_index(self.index, index_path)
-            print(f"Index saved to {index_path}")
+            logger.info(f"Index saved to {index_path}")
             return True
         except Exception as e:
-            print(f"Error saving index: {e}")
+            logger.error(f"Error saving index: {e}")
             return False
     
     # Load FAISS index from file
@@ -115,48 +128,53 @@ class RAGPipeline:
         try:
             if os.path.exists(index_path):
                 self.index = faiss.read_index(index_path)
-                # print(f"Index loaded from {index_path}")
+                logger.info(f"Index loaded from {index_path}")
                 return True
             else:
-                # print(f"Index file not found at {index_path}")
+                logger.info(f"Index file not found at {index_path}")
                 return False
         except Exception as e:
-            print(f"Error loading index: {e}")
+            logger.error(f"Error loading index: {e}")
             return False
     
     # ===== Pipeline Setup =====
     def setup_pipeline(self, docs_path: str = None) -> bool:
-        # Load documents
-        if not self.load_documents(docs_path):
-            return False
-        
+        try:
+            self.load_documents(docs_path)
+        except Exception:
+            logger.exception("Error loading documents")
+            raise
         texts = self.prepare_documents()
         if not texts:
-            return False
+            raise DocumentFormatError(docs_path)
         
         # Check if we should rebuild index
         if self.rebuild_index or not os.path.exists(self.index_path):
-            print("Building new index...")
+            logger.info("Building new index...")
             self.document_embeddings = self.create_embeddings(texts)
             self.build_index(self.document_embeddings)
             self.save_index()
         else:
-            print("Loading existing index...")
+            logger.info("Loading existing index...")
             if not self.load_index():
-                print("Failed to load index, building new one...")
+                logger.info("Failed to load index, building new one...")
                 self.document_embeddings = self.create_embeddings(texts)
                 self.build_index(self.document_embeddings)
                 self.save_index()
         
-        print("RAG pipeline setup completed")
+        logger.info("RAG pipeline setup completed")
         return True
     
     # ===== Search and Retrieval =====
     def search(self, query: str, k: int = None) -> List[Tuple[int, float, Dict]]:
         if self.index is None:
-            print("Error: Index not built. Run setup_pipeline() first.")
-            return []
+            logger.error("Error: Index not built. Run setup_pipeline() first.")
+            raise IndexNotReadyError()
         
+        if not query or not query.strip():
+            logger.error("Empty query provided to search()")
+            raise DocumentFormatError("empty query")
+            
         k = k or self.top_k
         
         # Create query embedding
@@ -170,7 +188,7 @@ class RAGPipeline:
         # Prepare results
         results = []
         for i, (score, doc_idx) in enumerate(zip(scores[0], indices[0])):
-            if doc_idx < len(self.documents):
+            if 0 <=doc_idx < len(self.documents):
                 results.append((int(doc_idx), float(score), self.documents[doc_idx]))
         
         return results
@@ -180,7 +198,7 @@ class RAGPipeline:
 
         results = self.search(query, k)
         if not results:
-            return "No relevant documents found."
+            return "No relevant documents found"
         
         context_parts = []
         for i, (doc_idx, score, doc) in enumerate(results, 1):
