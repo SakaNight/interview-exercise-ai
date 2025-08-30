@@ -7,31 +7,14 @@ import os
 from typing import List, Dict, Tuple
 import logging
 import sys
-from exceptions import IndexNotReadyError, DocumentFormatError, DocumentNotFoundError, QueryFormatError
+from exceptions import IndexNotReadyError, IndexLoadError, QueryFormatError, DocumentFormatError, DocumentNotFoundError
+from models import EmbeddingModel
 
 logger = logging.getLogger(__name__)
 
-class EmbeddingModel:
-    # Enable embedding model to be switched out, set model_name in settings.py
-    def __init__(self, model_name: str = None):
-        self.model_name = model_name or settings.model_name
-        self.model = SentenceTransformer(self.model_name)
-        logger.info(f"Initialized embedding model: {self.model_name}")
-    
-    # Encode text to embeddings
-    def encode_text(self, texts: List[str], convert_to_numpy=True) -> np.ndarray:
-        embeddings = self.model.encode(texts, convert_to_numpy=convert_to_numpy)
-        logger.debug(f"Created embeddings with shape: {embeddings.shape}")
-        return embeddings
-    
-    # Encode query for retrieval
-    def encode_query(self, query: str) -> np.ndarray:
-        query_embeddings = self.model.encode([query], convert_to_numpy=True)
-        logger.debug(f"Created query embedding with shape: {query_embeddings.shape}")
-        return query_embeddings
-
 class RAGPipeline:    
     def __init__(self, model_name: str = None):
+        # Use EmbeddingModel from models layer
         self.embedding_model = EmbeddingModel(model_name)
         self.index = None # FAISS index
         self.documents = [] # list of documents
