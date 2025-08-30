@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import List, Dict
+from typing import List, Dict, Literal
 from pydantic import BaseModel
 from models import LLMModel
 from exceptions import LLMProviderError, MCPOutputError
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class MCPResponse(BaseModel):
     answer: str
     references: List[str]
-    action_required: str
+    action_required: Literal['none', 'escalate_to_support', 'escalate_to_abuse_team', 'contact_customer']
 
 class LLMService:
     def __init__(self, model_name: str = None, provider: str = None):
@@ -60,3 +60,27 @@ Customer Ticket:
 Please provide your response in the required JSON format:"""
         
         return system_message, user_message
+
+    # Generate structured response using LLM with RAG context
+    def generate_response(self, ticket_text: str, context_docs: List[Dict], 
+                         max_retries: int = 3) -> MCPResponse:       
+        system_message, user_message = self.build_messages(ticket_text, context_docs)
+        logger.info(f"Generated messages with {len(context_docs)} context documents")
+        
+        # Generate response with retries
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"LLM generation attempt {attempt + 1}/{max_retries}")
+                
+                # Call LLM model from models layer with separate system and user messages
+                raw_response = self.llm_model.generate_with_messages(system_message, user_message)
+                logger.info("LLM response generated successfully")
+                
+                # Parse and validate response
+                return self.parse_response(raw_response)
+                
+            except Exception as e:
+                logger.warning(f"LLM generation attempt {attempt + 1} failed: {e}")
+                if attempt == max_retries - 1:
+                    raise LLMProviderError(f"LLM generation failed after {max_retries} attempts: {e}")
+                # Continue to next attempt
