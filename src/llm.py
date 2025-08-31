@@ -23,6 +23,11 @@ class LLMService:
         self.system_prompt = """You are a knowledge assistant for customer support tickets. 
 Your task is to analyze customer support queries and return structured, relevant, and helpful responses based on provided documentation.
 
+IMPORTANT RULES:
+1. Use only the provided context; do not fabricate information. If insufficient, explain and choose the appropriate action.
+2. Be concise but comprehensive in your responses.
+3. Always prioritize accuracy over completeness.
+
 You must respond in the following JSON format:
 {
     "answer": "Your answer based on the provided context",
@@ -31,19 +36,36 @@ You must respond in the following JSON format:
 }
 
 Use the provided context documents to answer accurately. If you cannot find relevant information, 
-indicate that in your answer and set action_required to "escalate_to_support"."""
+indicate that in your answer and set action_required to "escalate_to_support".
+
+Action Guidelines:
+- none: Sufficient information provided, no further action needed
+- escalate_to_support: Complex technical issue or insufficient context
+- escalate_to_abuse_team: Security, abuse, or policy violation concerns
+- contact_customer: Need additional information from customer"""
     
     # Build system and user messages separately for better JSON compliance and provider flexibility
     def build_messages(self, ticket_text: str, context_docs: List[Dict]) -> tuple[str, str]:
-        # Build context from documents
+        # Build context from documents with robust field handling and content truncation
         context_parts = []
         for i, doc in enumerate(context_docs, 1):
+            # Robust field extraction with fallbacks
+            title = doc.get('title', f'Document {i}')
+            section = doc.get('section', 'Unknown Section')
+            content = doc.get('content', '')
+            ref = doc.get('ref', f"{title}-{section}")
+            
+            # Truncate content to avoid overly long prompts (600-800 chars per doc)
+            max_content_length = 700
+            if len(content) > max_content_length:
+                content = content[:max_content_length] + "... [truncated]"
+            
             context_parts.append(
                 f"Document {i}:\n"
-                f"Title: {doc['title']}\n"
-                f"Section: {doc['section']}\n"
-                f"Content: {doc['content']}\n"
-                f"Reference: {doc['ref']}\n"
+                f"Title: {title}\n"
+                f"Section: {section}\n"
+                f"Content: {content}\n"
+                f"Reference: {ref}\n"
             )
         
         context_text = "\n".join(context_parts) if context_parts else "No relevant documents found."
@@ -65,45 +87,93 @@ Please provide your response in the required JSON format:"""
     # Generate structured response using LLM with RAG context
     def generate_response(self, ticket_text: str, context_docs: List[Dict], 
                          max_retries: int = 3) -> MCPResponse:       
+        import time
+        
         system_message, user_message = self.build_messages(ticket_text, context_docs)
         logger.info(f"Generated messages with {len(context_docs)} context documents")
         
         # Generate response with retries
         for attempt in range(max_retries):
+            start_time = time.time()
             try:
                 logger.info(f"LLM generation attempt {attempt + 1}/{max_retries}")
                 
                 # Call LLM model from models layer with separate system and user messages
                 raw_response = self.llm_model.generate_with_messages(system_message, user_message)
-                logger.info("LLM response generated successfully")
+                request_time = time.time() - start_time
+                logger.info(f"LLM response generated successfully in {request_time:.2f}s")
                 
                 # Parse and validate response
-                return self.parse_response(raw_response)
+                parsed_response = self.parse_response(raw_response)
+                total_time = time.time() - start_time
+                logger.info(f"Response parsed successfully in {total_time:.2f}s: action_required={parsed_response.action_required}, references_count={len(parsed_response.references)}")
                 
+                return parsed_response
+                
+            except (ValidationError, MCPOutputError) as e:
+                # JSON parsing/validation failed, try with enhanced instruction
+                if attempt < max_retries - 1:
+                    request_time = time.time() - start_time
+                    logger.warning(f"JSON validation failed on attempt {attempt + 1} after {request_time:.2f}s: {e}. Retrying with enhanced instruction...")
+                    system_message, user_message = self._enhance_messages_for_retry(system_message, user_message)
+                else:
+                    # Last attempt failed, raise the error
+                    total_time = time.time() - start_time
+                    raise LLMRetryError(f"JSON validation failed after {max_retries} attempts in {total_time:.2f}s", max_retries, str(e))
+                    
+            except LLMRateLimitError as e:
+                # Rate limit: exponential backoff and retry
+                if attempt < max_retries - 1:
+                    request_time = time.time() - start_time
+                    backoff_time = min(2 ** attempt, 30)  # Exponential backoff, max 30s
+                    logger.warning(f"Rate limit hit on attempt {attempt + 1} after {request_time:.2f}s. Backing off for {backoff_time}s...")
+                    time.sleep(backoff_time)
+                else:
+                    total_time = time.time() - start_time
+                    raise LLMRetryError(f"Rate limit exceeded after {max_retries} attempts in {total_time:.2f}s", max_retries, str(e))
+                    
+            except LLMTimeoutError as e:
+                # Timeout: small backoff and retry once
+                if attempt < max_retries - 1:
+                    request_time = time.time() - start_time
+                    logger.warning(f"Timeout on attempt {attempt + 1} after {request_time:.2f}s. Retrying once...")
+                    time.sleep(1)  # Small backoff
+                else:
+                    total_time = time.time() - start_time
+                    raise LLMRetryError(f"Timeout exceeded after {max_retries} attempts in {total_time:.2f}s", max_retries, str(e))
+                    
             except Exception as e:
-                logger.warning(f"LLM generation attempt {attempt + 1} failed: {e}")
+                # Other exceptions: log and retry if possible
+                request_time = time.time() - start_time
+                logger.warning(f"LLM generation attempt {attempt + 1} failed after {request_time:.2f}s: {e}")
                 if attempt == max_retries - 1:
-                    raise LLMRetryError(f"LLM generation failed", max_retries, str(e))
-                # Continue to next attempt
+                    total_time = time.time() - start_time
+                    raise LLMRetryError(f"LLM generation failed after {max_retries} attempts in {total_time:.2f}s", max_retries, str(e))
+    
+    # Enhance system message with stronger JSON formatting requirements
+    def _enhance_messages_for_retry(self, system_message: str, user_message: str) -> tuple[str, str]:
+        enhanced_system = system_message + """
 
-        # Continue to next attempt
+IMPORTANT: You MUST respond with ONLY a valid JSON object. 
+- No markdown formatting
+- No code fences (```json)
+- No additional text before or after the JSON
+- No explanations outside the JSON structure
+
+The response must be parseable by json.loads() directly."""
+        
+        # Enhance user message with explicit JSON requirement
+        enhanced_user = user_message + """
+
+CRITICAL: Respond with ONLY the JSON object, nothing else."""
+        
+        logger.info("Enhanced messages for JSON retry (context preserved)")
+        return enhanced_system, enhanced_user
 
     # parse raw response to MCPResponse
     def parse_response(self, raw_response: str) -> MCPResponse:
-        """
-        Parse raw LLM output into MCPResponse.
-        Strategy:
-          1) extract JSON and validate
-          2) if failed, trigger JSON-only fix retry (don't return original response)
-        """
-        try:
-            data = self._extract_json(raw_response)
-            return self._validate_and_build(data)
-        except MCPOutputError as e:
-            logger.warning("Primary JSON parse failed: %s. Trying JSON-only fix...", e)
-            fixed = self._retry_json_only()
-            data = self._extract_json(fixed)
-            return self._validate_and_build(data)
+        data = self._extract_json(raw_response)
+        return self._validate_and_build(data)
 
     # extract JSON and validate
     def _extract_json(self, text: str) -> dict:
@@ -154,21 +224,3 @@ Please provide your response in the required JSON format:"""
             action_required=action,
             references=deduped
         )
-
-    # JSON-only fix retry, don't return original response
-    def _retry_json_only(self) -> str:
-        fix_prompt = (
-            "Your previous output was not valid JSON. "
-            "Now respond with ONLY a valid JSON object, no extra text/markdown/code fences. "
-            "The JSON schema is:\n"
-            "{\n"
-            '  "answer": "string",\n'
-            '  "references": ["string"],\n'
-            '  "action_required": "one of: ' + ", ".join(settings.allowed_actions) + '"\n'
-            "}\n"
-        )
-        # use the simplest text interface in models layer; if needed, can also use generate_with_messages
-        try:
-            return self.llm_model.generate(fix_prompt)
-        except Exception as e:
-            raise LLMRetryError(f"JSON fix retry failed", 1, str(e)) from e
