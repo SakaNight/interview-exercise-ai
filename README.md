@@ -29,6 +29,7 @@ The combination is light-weighted, high-performance, integrated with OpenAPI, su
 │   │   └── prepare_index.py
 │   ├── tests
 │   │   ├── __init__.py
+│   │   ├── llm_tests.py
 │   │   └── rag_tests.py
 │   ├── llm.py
 │   ├── main.py
@@ -43,18 +44,84 @@ The combination is light-weighted, high-performance, integrated with OpenAPI, su
 ```
 
 ## Setup
-### Local
+
+### Prerequisites
+- Python 3.8+
+- OpenAI API key
+
+### Local Development
+
+1. **Clone and setup environment:**
 ```bash
-pip install sentence-transformers faiss-cpu numpy pydantic-settings openai
+git clone <your-repo-url>
+cd interview-exercise-ai
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
-### API 
+
+2. **Install dependencies:**
+```bash
+pip install -r requirements.txt
+```
+
+3. **Environment configuration:**
+```bash
+cp .env.example .env
+# Edit .env and add your OpenAI API key:
+# OPENAI_API_KEY=your_actual_api_key_here
+```
+
+4. **Prepare knowledge base:**
+```bash
+cd src/scripts
+python prepare_index.py
+cd ../..
+```
+
+5. **Run the application:**
+```bash
+cd src
+python main.py
+```
+
+### API Server
+```bash
+cd src
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
 ### Docker
+```bash
+docker-compose up --build
+```
 
 ## Test
-Run unit test and integration test
+
+### Run Tests
+```bash
+cd src
+python -m pytest tests/ -v
+
+# Run specific test files
+python -m pytest tests/llm_tests.py -v
+python -m pytest tests/rag_tests.py -v
+
+# Run with coverage
+python -m pytest tests/ --cov=. --cov-report=html
+```
 
 ## License & Credits
-### Embedding:
-### Vector:
-### LLM:
-MIT@2025[AriesChen]
+
+### Embedding Models
+- **sentence-transformers/all-MiniLM-L6-v2**: [Apache 2.0](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2)
+- **BAAI/bge-small-en-v1.5**: [MIT](https://huggingface.co/BAAI/bge-small-en-v1.5)
+
+### Vector Store
+- **FAISS**: [MIT](https://github.com/facebookresearch/faiss/blob/main/LICENSE)
+- **Qdrant** (future): [Apache 2.0](https://github.com/qdrant/qdrant/blob/master/LICENSE)
+
+### LLM
+- **OpenAI GPT-4o-mini**: [OpenAI Terms of Service](https://openai.com/policies/terms-of-use)
+
+### Project License
+MIT License © 2025 [AriesChen](https://github.com/arieschan)
