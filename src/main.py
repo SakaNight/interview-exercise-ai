@@ -1,11 +1,13 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError as PydanticValidationError
-from typing import Optional
+from typing import Optional, Dict, List
 import logging
 import time
+import statistics
 from contextlib import asynccontextmanager
+from collections import defaultdict, deque
 from rag import RAGPipeline
 from llm import LLMService, MCPResponse
 from exceptions import (ValidationError, LLMRetryError, MCPOutputError)
@@ -36,7 +38,90 @@ class ErrorResponse(BaseModel):
 
 # Global variables for services
 rag_pipeline: Optional[RAGPipeline] = None
-llm_service: Optional[LLMService] = None
+llm_service: Optional[RAGPipeline] = None
+
+# Performance monitoring data structures
+class PerformanceMetrics:
+    def __init__(self, max_samples: int = 1000):
+        self.max_samples = max_samples
+        self.request_times: Dict[str, deque] = defaultdict(lambda: deque(maxlen=max_samples))
+        self.response_sizes: Dict[str, deque] = defaultdict(lambda: deque(maxlen=max_samples))
+        self.error_counts: Dict[str, int] = defaultdict(int)
+        self.total_requests: Dict[str, int] = defaultdict(int)
+        self.start_time = time.time()
+    
+    # Add request duration for an endpoint
+    def add_request_time(self, endpoint: str, duration: float):
+        self.request_times[endpoint].append(duration)
+        self.total_requests[endpoint] += 1
+    
+    # Add response size for an endpoint
+    def add_response_size(self, endpoint: str, size: int):
+        self.response_sizes[endpoint].append(size)
+    
+    # Increment error count for an endpoint
+    def add_error(self, endpoint: str):
+        self.error_counts[endpoint] += 1
+    
+    # Get performance statistics for an endpoint
+    def get_stats(self, endpoint: str) -> Dict:
+        times = list(self.request_times[endpoint])
+        sizes = list(self.response_sizes[endpoint])
+        
+        if not times:
+            return {
+                "total_requests": self.total_requests[endpoint],
+                "error_count": self.error_counts[endpoint],
+                "avg_response_time": 0,
+                "min_response_time": 0,
+                "max_response_time": 0,
+                "p95_response_time": 0,
+                "avg_response_size": 0
+            }
+        
+        return {
+            "total_requests": self.total_requests[endpoint],
+            "error_count": self.error_counts[endpoint],
+            "avg_response_time": statistics.mean(times),
+            "min_response_time": min(times),
+            "max_response_time": max(times),
+            "p95_response_time": statistics.quantiles(times, n=20)[18] if len(times) >= 20 else max(times),
+            "avg_response_size": statistics.mean(sizes) if sizes else 0
+        }
+    
+    # Get overall performance statistics
+    def get_overall_stats(self) -> Dict:
+        all_times = []
+        all_sizes = []
+        total_requests = sum(self.total_requests.values())
+        total_errors = sum(self.error_counts.values())
+        
+        for times in self.request_times.values():
+            all_times.extend(times)
+        for sizes in self.response_sizes.values():
+            all_sizes.extend(sizes)
+        
+        if not all_times:
+            return {
+                "uptime_seconds": time.time() - self.start_time,
+                "total_requests": total_requests,
+                "total_errors": total_errors,
+                "error_rate": 0,
+                "avg_response_time": 0,
+                "p95_response_time": 0
+            }
+        
+        return {
+            "uptime_seconds": time.time() - self.start_time,
+            "total_requests": total_requests,
+            "total_errors": total_errors,
+            "error_rate": total_errors / total_requests if total_requests > 0 else 0,
+            "avg_response_time": statistics.mean(all_times),
+            "p95_response_time": statistics.quantiles(all_times, n=20)[18] if len(all_times) >= 20 else max(all_times)
+        }
+
+# Initialize performance metrics
+performance_metrics = PerformanceMetrics()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -88,6 +173,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Performance monitoring middleware
+@app.middleware("http")
+async def performance_middleware(request: Request, call_next):
+    start_time = time.time()
+    
+    # Get endpoint name
+    endpoint = f"{request.method} {request.url.path}"
+    
+    # Process request
+    response = await call_next(request)
+    
+    # Calculate metrics
+    duration = time.time() - start_time
+    response_size = len(str(response.body)) if hasattr(response, 'body') else 0
+    
+    # Record metrics
+    performance_metrics.add_request_time(endpoint, duration)
+    performance_metrics.add_response_size(endpoint, response_size)
+    
+    # Record errors
+    if response.status_code >= 400:
+        performance_metrics.add_error(endpoint)
+    
+    # Add performance headers
+    response.headers["X-Response-Time"] = f"{duration:.4f}s"
+    response.headers["X-Request-ID"] = str(int(start_time * 1000000))
+    
+    return response
+
 # Global exception handlers
 @app.exception_handler(PydanticValidationError)
 async def validation_exception_handler(request, exc):
@@ -132,7 +246,15 @@ async def root():
     return {
         "message": "Ticket Resolution API",
         "version": "1.0.0",
-        "status": "healthy"
+        "status": "healthy",
+        "performance": {
+            "uptime_seconds": round(time.time() - performance_metrics.start_time, 2),
+            "total_requests": sum(performance_metrics.total_requests.values()),
+            "avg_response_time": round(
+                statistics.mean([t for times in performance_metrics.request_times.values() for t in times]) 
+                if any(performance_metrics.request_times.values()) else 0, 4
+            )
+        }
     }
 
 # Test error handling endpoint
@@ -142,6 +264,57 @@ async def test_error():
         status_code=400,
         detail="This is a test error to verify error handling"
     )
+
+# Get overall performance metrics
+@app.get("/metrics")
+async def get_metrics():
+    return {
+        "success": True,
+        "data": performance_metrics.get_overall_stats(),
+        "timestamp": time.time()
+    }
+
+# Get performance metrics for a specific endpoint
+@app.get("/metrics/{endpoint}")
+async def get_endpoint_metrics(endpoint: str):
+    # Convert URL path to endpoint format
+    endpoint_key = f"GET {endpoint}" if not endpoint.startswith(("GET ", "POST ", "PUT ", "DELETE ")) else endpoint
+    
+    # Get all available endpoints
+    available_endpoints = list(performance_metrics.total_requests.keys())
+    
+    if endpoint_key not in available_endpoints:
+        # Try to find a matching endpoint
+        matching_endpoints = [ep for ep in available_endpoints if endpoint in ep]
+        if matching_endpoints:
+            endpoint_key = matching_endpoints[0]
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Endpoint not found. Available endpoints: {available_endpoints}"
+            )
+    
+    return {
+        "success": True,
+        "data": {
+            "endpoint": endpoint_key,
+            "metrics": performance_metrics.get_stats(endpoint_key)
+        },
+        "timestamp": time.time()
+    }
+
+# Get list of all monitored endpoints
+@app.get("/metrics/endpoints")
+async def get_all_endpoints():
+    endpoints = list(performance_metrics.total_requests.keys())
+    return {
+        "success": True,
+        "data": {
+            "endpoints": endpoints,
+            "total_endpoints": len(endpoints)
+        },
+        "timestamp": time.time()
+    }
 
 # Resolve ticket endpoint
 @app.post("/resolve-ticket", response_model=TicketResponse)
