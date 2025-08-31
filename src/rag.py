@@ -78,7 +78,7 @@ class RAGPipeline:
     # ===== Embedding and Index Management =====
     # Create embeddings from text
     def create_embeddings(self, texts: List[str]) -> np.ndarray:
-        embeddings = self.embedding_model.encode_text(texts)
+        embeddings = self.embedding_model.encode(texts)
         embeddings = embeddings.astype("float32", copy=False) # FAISS needs float32
         faiss.normalize_L2(embeddings) # Normalize embedding for cosine similarity
         logger.debug(f"Created embeddings with shape: {embeddings.shape}")

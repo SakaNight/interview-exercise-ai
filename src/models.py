@@ -4,7 +4,11 @@ from sentence_transformers import SentenceTransformer
 from openai import OpenAI
 from settings import settings
 import logging
-from exceptions import LLMProviderError, EmbeddingModelError
+from exceptions import (
+    LLMProviderError, EmbeddingModelError, LLMConfigError, 
+    OpenAIAPIAuthenticationError, OpenAIAPIServerError, LLMTimeoutError, 
+    LLMRateLimitError
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -41,6 +45,9 @@ class LLMModel:
         
         # Initialize client based on provider (default: openai)
         if self.provider == "openai":
+            if not settings.api_key:
+                raise LLMConfigError("OpenAI API key is not configured", "api_key")
+            
             self.client = OpenAI(
                 api_key=settings.api_key,
                 base_url=settings.api_host
@@ -49,7 +56,7 @@ class LLMModel:
             raise LLMProviderError(f"Unsupported LLM provider: {self.provider}")
     
     def generate(self, prompt: str) -> str:
-        # Generate raw text response from prompt
+        # Generate raw text response from prompt (legacy method)
         try:
             response = self.client.chat.completions.create(
                 model=self.model_name,
@@ -62,4 +69,45 @@ class LLMModel:
             )
             return response.choices[0].message.content
         except Exception as e:
-            raise Exception(f"LLM generation failed: {e}")
+            # Try to provide more specific error information
+            error_msg = str(e)
+            if "authentication" in error_msg.lower() or "401" in error_msg:
+                raise OpenAIAPIAuthenticationError(f"OpenAI authentication failed: {error_msg}")
+            elif "rate limit" in error_msg.lower() or "429" in error_msg:
+                raise LLMRateLimitError(f"OpenAI rate limit exceeded: {error_msg}")
+            elif "timeout" in error_msg.lower():
+                raise LLMTimeoutError(f"OpenAI request timed out: {error_msg}")
+            elif "500" in error_msg or "server" in error_msg.lower():
+                raise OpenAIAPIServerError(f"OpenAI server error: {error_msg}")
+            else:
+                raise LLMProviderError(f"OpenAI API error: {error_msg}")
+    
+    def generate_with_messages(self, system_message: str, user_message: str) -> str:
+        # Generate response using separate system and user messages for better JSON compliance
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": user_message}
+                ],
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                top_p=self.top_p,
+                frequency_penalty=self.frequency_penalty,
+                presence_penalty=self.presence_penalty
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            # Try to provide more specific error information
+            error_msg = str(e)
+            if "authentication" in error_msg.lower() or "401" in error_msg:
+                raise OpenAIAPIAuthenticationError(f"OpenAI authentication failed: {error_msg}")
+            elif "rate limit" in error_msg.lower() or "429" in error_msg:
+                raise LLMRateLimitError(f"OpenAI rate limit exceeded: {error_msg}")
+            elif "timeout" in error_msg.lower():
+                raise LLMTimeoutError(f"OpenAI request timed out: {error_msg}")
+            elif "500" in error_msg or "server" in error_msg.lower():
+                raise OpenAIAPIServerError(f"OpenAI server error: {error_msg}")
+            else:
+                raise LLMProviderError(f"OpenAI API error: {error_msg}")

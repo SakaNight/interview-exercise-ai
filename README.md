@@ -11,6 +11,15 @@ The combination is light-weighted, high-performance, integrated with OpenAPI, su
 - **LLMs**: OpenAI gpt-4o-mini (temperature 0 for deterministic JSON)
 - **Configuration Management**: Pydantic Settings to manage all the models, index, API keys etc. for easy switch
 
+## Configuration
+- **Allowed Actions**: The system supports four action types for customer support tickets:
+  - `none`: Sufficient information provided, no further action needed
+  - `escalate_to_support`: Complex technical issue or insufficient context
+  - `escalate_to_abuse_team`: Security, abuse, or policy violation concerns
+  - `contact_customer`: Need additional information from customer
+- **Max References**: Default limit of 3 document references per response to maintain concise answers
+- **Top K Results**: Default of 3 most relevant documents retrieved from the knowledge base
+
 ## Structure
 ```bash
 ├── src
@@ -36,7 +45,7 @@ The combination is light-weighted, high-performance, integrated with OpenAPI, su
 ## Setup
 ### Local
 ```bash
-pip install sentence-transformers faiss-cpu numpy pydantic-settings
+pip install sentence-transformers faiss-cpu numpy pydantic-settings openai
 ```
 ### API 
 ### Docker
