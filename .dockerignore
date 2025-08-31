@@ -1,0 +1,60 @@
+# VCS
+.git
+.github
+.gitattributes
+.gitignore
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Python cache & builds
+__pycache__/
+*.py[cod]
+*$py.class
+.build/
+dist/
+.eggs/
+*.egg-info/
+
+# Virtualenv
+.venv/
+venv/
+env/
+ENV/
+
+# Tests & coverage
+.pytest_cache/
+.tox/
+coverage.xml
+htmlcov/
+
+# Logs / temp
+*.log
+logs/
+tmp/
+temp/
+
+# Env files
+.env
+.env.local
+.env.production
+.env.staging
+
+# Runtime data & artifacts
+faiss_index.bin
+index/
+.app_cache/
+.cache/
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Root-level helper scripts
+/scripts/
