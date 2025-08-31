@@ -1,12 +1,14 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, ValidationError as PydanticValidationError
 from typing import Optional
 import logging
 import time
 from contextlib import asynccontextmanager
 from rag import RAGPipeline
 from llm import LLMService, MCPResponse
+from exceptions import (ValidationError, LLMRetryError, MCPOutputError)
 from settings import settings
 
 # Configure logging
@@ -86,6 +88,44 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Global exception handlers
+@app.exception_handler(PydanticValidationError)
+async def validation_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=422,
+        content={
+            "success": False,
+            "error": "Validation error",
+            "error_type": "VALIDATION_ERROR",
+            "detail": str(exc)
+        }
+    )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "error": exc.detail,
+            "error_type": "HTTP_ERROR",
+            "status_code": exc.status_code
+        }
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request, exc):
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "error": "Internal server error",
+            "error_type": "INTERNAL_ERROR",
+            "detail": "An unexpected error occurred"
+        }
+    )
+
 # Health check endpoint
 @app.get("/")
 async def root():
@@ -95,47 +135,83 @@ async def root():
         "status": "healthy"
     }
 
+# Test error handling endpoint
+@app.get("/test-error")
+async def test_error():
+    raise HTTPException(
+        status_code=400,
+        detail="This is a test error to verify error handling"
+    )
+
 # Resolve ticket endpoint
 @app.post("/resolve-ticket", response_model=TicketResponse)
 async def resolve_ticket_endpoint(ticket: TicketRequest):
     start_time = time.time()
     
-    # Validate services are available
-    if not rag_pipeline or not llm_service:
-        raise HTTPException(
-            status_code=503, 
-            detail="Service not available. Please try again later."
+    try:
+        # Validate services are available
+        if not rag_pipeline or not llm_service:
+            raise HTTPException(
+                status_code=503, 
+                detail="Service not available. Please try again later."
+            )
+        
+        logger.info(f"Processing ticket: {ticket.ticket_text[:100]}...")
+        
+        # Search for relevant documents
+        logger.info("Searching for relevant documents...")
+        relevant_docs = rag_pipeline.search(ticket.ticket_text, k=settings.top_k)
+        
+        if not relevant_docs:
+            logger.warning("No relevant documents found")
+            context_docs = []
+        else:
+            # Extract document data from search results
+            context_docs = [doc for _, _, doc in relevant_docs]
+            logger.info(f"Found {len(context_docs)} relevant documents")
+        
+        # Generate structured response
+        logger.info("Generating LLM response...")
+        response = llm_service.generate_response(ticket.ticket_text, context_docs)
+        
+        # Calculate processing time
+        processing_time = time.time() - start_time
+        
+        logger.info(f"Ticket resolution completed successfully in {processing_time:.2f}s")
+        
+        return TicketResponse(
+            success=True,
+            data=response,
+            processing_time=processing_time,
+            documents_retrieved=len(context_docs)
         )
-    
-    logger.info(f"Processing ticket: {ticket.ticket_text[:100]}...")
-    
-    # Search for relevant documents
-    logger.info("Searching for relevant documents...")
-    relevant_docs = rag_pipeline.search(ticket.ticket_text, k=settings.top_k)
-    
-    if not relevant_docs:
-        logger.warning("No relevant documents found")
-        context_docs = []
-    else:
-        # Extract document data from search results
-        context_docs = [doc for _, _, doc in relevant_docs]
-        logger.info(f"Found {len(context_docs)} relevant documents")
-    
-    # Generate structured response
-    logger.info("Generating LLM response...")
-    response = llm_service.generate_response(ticket.ticket_text, context_docs)
-    
-    # Calculate processing time
-    processing_time = time.time() - start_time
-    
-    logger.info(f"Ticket resolution completed successfully in {processing_time:.2f}s")
-    
-    return TicketResponse(
-        success=True,
-        data=response,
-        processing_time=processing_time,
-        documents_retrieved=len(context_docs)
-    )
+        
+    except (ValidationError, MCPOutputError) as e:
+        # JSON validation or parsing errors
+        processing_time = time.time() - start_time
+        logger.error(f"Validation error: {e}")
+        raise HTTPException(
+            status_code=422,
+            detail=f"Response validation failed: {str(e)}"
+        )
+        
+    except LLMRetryError as e:
+        # LLM retry errors
+        processing_time = time.time() - start_time
+        logger.error(f"LLM retry error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"LLM service temporarily unavailable: {str(e)}"
+        )
+        
+    except Exception as e:
+        # Unexpected errors
+        processing_time = time.time() - start_time
+        logger.error(f"Unexpected error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Please try again later."
+        )
 
 if __name__ == "__main__":
     import uvicorn
