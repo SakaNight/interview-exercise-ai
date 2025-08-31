@@ -91,80 +91,24 @@ class LLMRateLimitError(RAGError):
         msg = f"LLM rate limit exceeded: {message}"
         if retry_after:
             msg += f" (retry after: {retry_after}s)"
-        super().__init__(msg, "LLM_RATE_LIMIT_ERROR")
+        super().__init__(message, "LLM_RATE_LIMIT_ERROR")
         self.retry_after = retry_after
 
 # ===== OpenAI API errors =====
-class OpenAIAPIError(RAGError):
-    # Base class for OpenAI API-related errors
-    def __init__(self, message: str, status_code: int = None, endpoint: str = None):
-        msg = f"OpenAI API error: {message}"
-        if status_code:
-            msg += f" (status: {status_code})"
-        if endpoint:
-            msg += f" (endpoint: {endpoint})"
-        super().__init__(msg, "OPENAI_API_ERROR")
-        self.status_code = status_code
-        self.endpoint = endpoint
-
-class OpenAIAPIAuthenticationError(OpenAIAPIError):
+class OpenAIAPIAuthenticationError(RAGError):
     # Raised when OpenAI API authentication fails
     def __init__(self, message: str = "Authentication failed", status_code: int = 401):
-        super().__init__(message, status_code, "OPENAI_API_AUTH_ERROR")
+        super().__init__(message, "OPENAI_API_AUTH_ERROR")
+        self.status_code = status_code
 
-class OpenAIAPINotFoundError(OpenAIAPIError):
-    # Raised when OpenAI API endpoint is not found
-    def __init__(self, message: str = "Endpoint not found", status_code: int = 404):
-        super().__init__(message, status_code, "OPENAI_API_NOT_FOUND")
-
-class OpenAIAPIServerError(OpenAIAPIError):
+class OpenAIAPIServerError(RAGError):
     # Raised when OpenAI API server returns an error
     def __init__(self, message: str = "Server error", status_code: int = 500):
-        super().__init__(message, status_code, "OPENAI_API_SERVER_ERROR")
-
-# ===== API (resolve-ticket) errors =====
-class CustomAPIError(RAGError):
-    # Base class for resolve-ticket API-related errors
-    def __init__(self, message: str, status_code: int = None, endpoint: str = None):
-        msg = f"Custom API error: {message}"
-        if status_code:
-            msg += f" (status: {status_code})"
-        if endpoint:
-            msg += f" (endpoint: {endpoint})"
-        super().__init__(msg, "CUSTOM_API_ERROR")
+        super().__init__(message, "OPENAI_API_SERVER_ERROR")
         self.status_code = status_code
-        self.endpoint = endpoint
-
-class CustomAPIAuthenticationError(CustomAPIError):
-    # Raised when resolve-ticket API authentication fails
-    def __init__(self, message: str = "Authentication failed", status_code: int = 401):
-        super().__init__(message, status_code, "CUSTOM_API_AUTH_ERROR")
-
-class CustomAPINotFoundError(CustomAPIError):
-    # Raised when resolve-ticket API endpoint is not found
-    def __init__(self, message: str = "Endpoint not found", status_code: int = 404):
-        super().__init__(message, status_code, "CUSTOM_API_NOT_FOUND")
-
-class CustomAPIServerError(CustomAPIError):
-    # Raised when resolve-ticket API server returns an error
-    def __init__(self, message: str = "Server error", status_code: int = 500):
-        super().__init__(message, status_code, "CUSTOM_API_SERVER_ERROR")
-
-class CustomAPIValidationError(CustomAPIError):
-    # Raised when resolve-ticket API input validation fails
-    def __init__(self, message: str = "Validation failed", field: str = None, value: str = None):
-        msg = f"Custom API validation error: {message}"
-        if field:
-            msg += f" (field: {field})"
-        if value:
-            msg += f" (value: {value})"
-        super().__init__(msg, 400, "CUSTOM_API_VALIDATION_ERROR")
-        self.field = field
-        self.value = value
 
 # ===== Validation errors =====
 class ValidationError(RAGError):
-    # Base class for validation errors
     def __init__(self, message: str, field: str = None, value: str = None):
         msg = f"Validation error: {message}"
         if field:
@@ -174,43 +118,3 @@ class ValidationError(RAGError):
         super().__init__(msg, "VALIDATION_ERROR")
         self.field = field
         self.value = value
-
-class SchemaValidationError(ValidationError):
-    # Raised when JSON schema validation fails
-    def __init__(self, message: str, schema_path: str = None):
-        msg = f"Schema validation failed: {message}"
-        if schema_path:
-            msg += f" (schema: {schema_path})"
-        super().__init__(msg, "SCHEMA_VALIDATION_ERROR")
-        self.schema_path = schema_path
-
-# ===== System/Configuration errors =====
-class ConfigurationError(RAGError):
-    # Raised when system configuration is invalid
-    def __init__(self, message: str, config_file: str = None):
-        msg = f"Configuration error: {message}"
-        if config_file:
-            msg += f" (file: {config_file})"
-        super().__init__(message, "CONFIGURATION_ERROR")
-        self.config_file = config_file
-
-class EnvironmentError(RAGError):
-    # Raised when required environment variables are missing
-    def __init__(self, message: str, missing_vars: list = None):
-        msg = f"Environment error: {message}"
-        if missing_vars:
-            msg += f" (missing: {', '.join(missing_vars)})"
-        super().__init__(msg, "ENVIRONMENT_ERROR")
-        self.missing_vars = missing_vars
-
-class ServiceUnavailableError(RAGError):
-    # Raised when a required service is unavailable
-    def __init__(self, message: str, service_name: str = None, retry_after: int = None):
-        msg = f"Service unavailable: {message}"
-        if service_name:
-            msg += f" (service: {service_name})"
-        if retry_after:
-            msg += f" (retry after: {retry_after}s)"
-        super().__init__(msg, "SERVICE_UNAVAILABLE")
-        self.service_name = service_name
-        self.retry_after = retry_after
