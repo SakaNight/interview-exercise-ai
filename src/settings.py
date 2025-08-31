@@ -43,7 +43,7 @@ class Settings(BaseSettings):
 
     # Paths
     docs_path: str = "src/data/docs.json"
-    index_path: str = "faiss_index.bin"
+    index_path: str = "/app/index/faiss_index.bin"
     
 settings = Settings()
 
