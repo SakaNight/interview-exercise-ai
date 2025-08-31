@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError as PydanticValidationError
@@ -35,6 +35,23 @@ class ErrorResponse(BaseModel):
     error: str
     error_type: str
     processing_time: Optional[float] = None
+
+# Document management models
+class DocumentInfo(BaseModel):
+    id: int
+    title: str
+    section: str
+    tags: Optional[List[str]] = None
+    ref: str
+
+class ReindexRequest(BaseModel):
+    token: str = Field(..., description="Security token for reindexing")
+
+class ReindexResponse(BaseModel):
+    success: bool = True
+    documents_processed: int
+    processing_time: float
+    message: str
 
 # Global variables for services
 rag_pipeline: Optional[RAGPipeline] = None
@@ -122,6 +139,18 @@ class PerformanceMetrics:
 
 # Initialize performance metrics
 performance_metrics = PerformanceMetrics()
+
+# Simple token validation for development mode
+async def verify_reindex_token(token: str = Header(..., alias="X-Reindex-Token")):
+    """Verify reindex token (simple development mode protection)"""
+    # In production, this should be a proper JWT or API key validation
+    expected_token = "dev-reindex-2025"
+    if token != expected_token:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid reindex token"
+        )
+    return token
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -315,6 +344,93 @@ async def get_all_endpoints():
         },
         "timestamp": time.time()
     }
+
+# List all documents in the index with metadata
+@app.get("/documents")
+async def get_documents():
+    try:
+        if not rag_pipeline:
+            raise HTTPException(
+                status_code=503,
+                detail="RAG pipeline not available"
+            )
+        
+        # Get documents from RAG pipeline
+        documents = rag_pipeline.documents
+        
+        # Convert to DocumentInfo format
+        doc_list = []
+        for i, doc in enumerate(documents):
+            doc_info = DocumentInfo(
+                id=i + 1,
+                title=doc.get('title', f'Document {i + 1}'),
+                section=doc.get('section', 'Unknown Section'),
+                tags=doc.get('tags', []),
+                ref=doc.get('ref', f"{doc.get('title', '')}-{doc.get('section', '')}")
+            )
+            doc_list.append(doc_info)
+        
+        return {
+            "success": True,
+            "data": {
+                "documents": doc_list,
+                "total_count": len(doc_list)
+            },
+            "timestamp": time.time()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error retrieving documents: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve documents"
+        )
+
+# Rebuild the search index (development mode only)
+@app.post("/reindex", response_model=ReindexResponse)
+async def rebuild_index(token: str = Depends(verify_reindex_token)):
+    start_time = time.time()
+    
+    try:
+        if not rag_pipeline:
+            raise HTTPException(
+                status_code=503,
+                detail="RAG pipeline not available"
+            )
+        
+        logger.info("Starting index rebuild...")
+        
+        # Rebuild the index
+        success = rag_pipeline.setup_pipeline()
+        
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to rebuild index"
+            )
+        
+        # Get document count
+        documents = rag_pipeline.documents
+        doc_count = len(documents)
+        
+        processing_time = time.time() - start_time
+        
+        logger.info(f"Index rebuild completed successfully in {processing_time:.2f}s with {doc_count} documents")
+        
+        return ReindexResponse(
+            success=True,
+            documents_processed=doc_count,
+            processing_time=processing_time,
+            message=f"Index rebuilt successfully with {doc_count} documents"
+        )
+        
+    except Exception as e:
+        processing_time = time.time() - start_time
+        logger.error(f"Error rebuilding index: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to rebuild index: {str(e)}"
+        )
 
 # Resolve ticket endpoint
 @app.post("/resolve-ticket", response_model=TicketResponse)
