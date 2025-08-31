@@ -29,8 +29,11 @@ The combination is light-weighted, high-performance, integrated with OpenAPI, su
 │   │   └── prepare_index.py
 │   ├── tests
 │   │   ├── __init__.py
+│   │   ├── api_tests.py
+│   │   ├── conftest.py
 │   │   ├── llm_tests.py
 │   │   └── rag_tests.py
+│   ├── exceptions.py
 │   ├── llm.py
 │   ├── main.py
 │   ├── models.py
@@ -88,6 +91,74 @@ python main.py
 ```bash
 cd src
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### API Endpoints
+
+#### Health Check
+**GET** `/`
+```bash
+curl http://localhost:8000/
+```
+
+**Response:**
+```json
+{
+  "message": "Ticket Resolution API",
+  "version": "1.0.0",
+  "status": "healthy",
+  "performance": {
+    "uptime_seconds": 1234.56,
+    "total_requests": 42,
+    "avg_response_time": 0.0456
+  }
+}
+```
+
+#### Resolve Support Ticket
+**POST** `/resolve-ticket`
+```bash
+curl -X POST http://localhost:8000/resolve-ticket \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ticket_text": "I cannot access my domain, it says invalid password"
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "answer": "Based on the documentation, you need to reset your password. Please check your email for reset instructions.",
+    "references": ["Domain Access Guide", "Password Reset"],
+    "action_required": "contact_customer"
+  },
+  "processing_time": 1.234,
+  "documents_retrieved": 2
+}
+```
+
+#### Performance Metrics
+**GET** `/metrics`
+```bash
+curl http://localhost:8000/metrics
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "uptime_seconds": 1234.56,
+    "total_requests": 42,
+    "total_errors": 2,
+    "error_rate": 0.0476,
+    "avg_response_time": 0.0456,
+    "p95_response_time": 0.123
+  },
+  "timestamp": 1703123456.789
+}
 ```
 
 ### Docker
