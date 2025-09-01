@@ -46,45 +46,18 @@ The combination is light-weighted, high-performance, integrated with OpenAPI, su
 └── README.md
 ```
 
-## Setup
+## Quick Start
 
 ### Prerequisites
 - Python 3.8+
 - OpenAI API key
 
 ### Local Development
-
-1. **Clone and setup environment:**
 ```bash
-git clone <your-repo-url>
-cd interview-exercise-ai
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-2. **Install dependencies:**
-```bash
+git clone <repo>
 pip install -r requirements.txt
-```
-
-3. **Environment configuration:**
-```bash
 cp .env.example .env
-# Edit .env and add your OpenAI API key:
-# OPENAI_API_KEY=your_actual_api_key_here
-```
-
-4. **Prepare knowledge base:**
-```bash
-cd src/scripts
-python prepare_index.py
-cd ../..
-```
-
-5. **Run the application:**
-```bash
-cd src
-python main.py
+python src/main.py
 ```
 
 ### API Server
@@ -139,46 +112,26 @@ curl -X POST http://localhost:8000/resolve-ticket \
 }
 ```
 
-#### Performance Metrics
-**GET** `/metrics`
+## 🐳 Docker Deployment
 ```bash
-curl http://localhost:8000/metrics
-```
+# Start development environment with hot reload
+docker-compose --profile dev up --build
 
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "uptime_seconds": 1234.56,
-    "total_requests": 42,
-    "total_errors": 2,
-    "error_rate": 0.0476,
-    "avg_response_time": 0.0456,
-    "p95_response_time": 0.123
-  },
-  "timestamp": 1703123456.789
-}
-```
+## 🧪 Testing
 
-### Docker
-```bash
-docker-compose up --build
-```
+### Test Structure
 
-## Test
+The project includes comprehensive tests organized into different modules:
 
-### Run Tests
+- **API Tests** (`tests/api_tests.py`): Endpoint testing with mocked services
+- **LLM Tests** (`tests/llm_tests.py`): LLM service functionality testing
+- **RAG Tests** (`tests/rag_tests.py`): RAG pipeline testing
+- **Integration Tests**: End-to-end functionality testing
+
+**Run All Tests:**
 ```bash
 cd src
 python -m pytest tests/ -v
-
-# Run specific test files
-python -m pytest tests/llm_tests.py -v
-python -m pytest tests/rag_tests.py -v
-
-# Run with coverage
-python -m pytest tests/ --cov=. --cov-report=html
 ```
 
 ## License & Credits
