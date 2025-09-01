@@ -43,7 +43,7 @@ class Settings(BaseSettings):
 
     # Paths
     docs_path: str = "src/data/docs.json"
-    index_path: str = "/app/index/faiss_index.bin"
+    index_path: str = "index/faiss_index.bin"  # Relative path, will be resolved in RAGPipeline
     
 settings = Settings()
 
