@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import List, Dict, Literal
+from typing import List, Dict, Literal, Optional
 from pydantic import BaseModel
 from models import LLMModel
 from exceptions import MCPOutputError, LLMRetryError, LLMTimeoutError, LLMRateLimitError, ValidationError
@@ -8,10 +8,21 @@ from settings import settings
 
 logger = logging.getLogger(__name__)
 
+# Structured reference model for better traceability
+class DocumentReference(BaseModel):
+    doc_id: str
+    title: str
+    section: str
+    url: Optional[str] = None  # Optional URL for external references
+    
+    def __str__(self) -> str:
+        """String representation for backward compatibility"""
+        return f"{self.title} - {self.section} (#{self.doc_id})"
+
 # Model Context Protocol (MCP) response structure
 class MCPResponse(BaseModel):
     answer: str
-    references: List[str]
+    references: List[DocumentReference]
     action_required: Literal['none', 'escalate_to_support', 'escalate_to_abuse_team', 'contact_customer']
 
 class LLMService:
@@ -19,11 +30,10 @@ class LLMService:
         # Initialize LLM model from models layer
         self.llm_model = LLMModel(model_name, provider)
         
-        # MCP-compliant prompt template with clear four-section structure
+        # MCP-compliant prompt template with four-section structure
         self.system_prompt = self._build_mcp_system_prompt()
     
     def _build_mcp_system_prompt(self) -> str:
-        """Build MCP-compliant system prompt with clear four-section structure"""
         return """=== ROLE ===
 You are a specialized knowledge assistant for customer support ticket resolution. Your expertise is in analyzing customer queries and providing structured, accurate responses based on provided documentation.
 
@@ -53,7 +63,14 @@ You MUST respond with a valid JSON object matching this exact schema:
 
 {
   "answer": "string (required) - Your detailed answer based on the provided context",
-  "references": ["string"] (required) - Array of document references that support your answer (max 3 items),
+  "references": [
+    {
+      "doc_id": "string (required) - Document ID from the provided context",
+      "title": "string (required) - Document title from the provided context", 
+      "section": "string (required) - Document section from the provided context",
+      "url": "string (optional) - URL if available, null otherwise"
+    }
+  ] (required) - Array of structured document references that support your answer (max 3 items),
   "action_required": "string (required) - One of: 'none', 'escalate_to_support', 'escalate_to_abuse_team', 'contact_customer'"
 }
 
@@ -85,8 +102,12 @@ RESPONSE REQUIREMENTS:
             if len(content) > max_content_length:
                 content = content[:max_content_length] + "... [truncated]"
             
+            # Extract doc_id for structured references
+            doc_id = doc.get('id', f'doc_{i:03d}')
+            
             context_parts.append(
                 f"Document {i}:\n"
+                f"ID: {doc_id}\n"
                 f"Title: {title}\n"
                 f"Section: {section}\n"
                 f"Content: {content}\n"
@@ -177,7 +198,6 @@ Please provide your response in the required JSON format:"""
     
     # Enhance system message with stronger JSON formatting requirements for retry
     def _enhance_messages_for_retry(self, system_message: str, user_message: str, attempt: int) -> tuple[str, str]:
-        """Enhance messages for retry with progressively stronger JSON requirements"""
         
         # Progressive enhancement based on attempt number
         if attempt == 1:
@@ -213,7 +233,18 @@ REQUIREMENTS:
 5. Must be valid JSON that can be parsed by json.loads()
 
 EXAMPLE OF CORRECT FORMAT:
-{"answer": "Your answer here", "references": ["ref1", "ref2"], "action_required": "none"}
+{
+  "answer": "Your answer here",
+  "references": [
+    {
+      "doc_id": "doc_001",
+      "title": "Domain Suspension Guidelines", 
+      "section": "Reasons for Suspension",
+      "url": null
+    }
+  ],
+  "action_required": "none"
+}
 
 ANY DEVIATION FROM THIS FORMAT WILL CAUSE SYSTEM FAILURE."""
             
@@ -304,38 +335,70 @@ FINAL ATTEMPT: Return ONLY the JSON object. Nothing else. No explanations."""
         
         return action_clean
     
-    def _validate_references_field(self, refs) -> List[str]:
-        """Validate and clean references field"""
+    def _validate_references_field(self, refs) -> List[DocumentReference]:
+        """Validate and clean references field for structured references"""
         if not isinstance(refs, list):
             raise ValidationError("Field 'references' must be a list", "references", str(type(refs)))
         
         if len(refs) == 0:
             raise ValidationError("Field 'references' cannot be empty", "references", "empty list")
         
-        # Validate each reference
+        # Validate each reference object
         validated_refs = []
         for i, ref in enumerate(refs):
-            if not isinstance(ref, str):
-                raise ValidationError(f"Reference at index {i} must be a string", "references", f"index {i}: {type(ref)}")
+            if not isinstance(ref, dict):
+                raise ValidationError(f"Reference at index {i} must be an object", "references", f"index {i}: {type(ref)}")
             
-            ref_clean = ref.strip()
-            if not ref_clean:
-                raise ValidationError(f"Reference at index {i} cannot be empty", "references", f"index {i}: empty")
+            # Validate required fields
+            required_fields = ['doc_id', 'title', 'section']
+            missing_fields = [field for field in required_fields if field not in ref]
+            if missing_fields:
+                raise ValidationError(f"Reference at index {i} missing required fields: {missing_fields}", 
+                                    "references", f"index {i}: missing {missing_fields}")
             
-            if len(ref_clean) > 200:  # Reasonable limit per reference
-                raise ValidationError(f"Reference at index {i} exceeds maximum length (200 chars)", 
-                                    "references", f"index {i}: length {len(ref_clean)}")
+            # Validate field types and content
+            doc_id = self._validate_reference_field(ref['doc_id'], i, 'doc_id', max_length=50)
+            title = self._validate_reference_field(ref['title'], i, 'title', max_length=200)
+            section = self._validate_reference_field(ref['section'], i, 'section', max_length=200)
             
-            validated_refs.append(ref_clean)
+            # Validate optional url field
+            url = None
+            if 'url' in ref:
+                if ref['url'] is not None:
+                    url = self._validate_reference_field(ref['url'], i, 'url', max_length=500, allow_empty=False)
+            
+            validated_refs.append(DocumentReference(
+                doc_id=doc_id,
+                title=title,
+                section=section,
+                url=url
+            ))
         
-        # Deduplicate and limit
+        # Deduplicate by doc_id and limit
         deduped = []
-        seen = set()
+        seen_doc_ids = set()
         for ref in validated_refs:
-            if ref not in seen:
+            if ref.doc_id not in seen_doc_ids:
                 deduped.append(ref)
-                seen.add(ref)
+                seen_doc_ids.add(ref.doc_id)
             if len(deduped) >= settings.max_references:
                 break
         
         return deduped
+    
+    def _validate_reference_field(self, value, index: int, field_name: str, max_length: int = 200, allow_empty: bool = True) -> str:
+        """Validate individual reference field"""
+        if not isinstance(value, str):
+            raise ValidationError(f"Reference at index {index}, field '{field_name}' must be a string", 
+                                "references", f"index {index}.{field_name}: {type(value)}")
+        
+        value_clean = value.strip()
+        if not allow_empty and not value_clean:
+            raise ValidationError(f"Reference at index {index}, field '{field_name}' cannot be empty", 
+                                "references", f"index {index}.{field_name}: empty")
+        
+        if len(value_clean) > max_length:
+            raise ValidationError(f"Reference at index {index}, field '{field_name}' exceeds maximum length ({max_length} chars)", 
+                                "references", f"index {index}.{field_name}: length {len(value_clean)}")
+        
+        return value_clean
