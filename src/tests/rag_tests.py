@@ -3,12 +3,11 @@ import sys
 import os
 import logging
 import traceback
+from rag import RAGPipeline
+from exceptions import RAGError
 
 # Add src directory to path so we can import our modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-from rag import RAGPipeline
-from exceptions import RAGError
 
 logging.basicConfig(
     level=logging.INFO,

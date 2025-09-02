@@ -98,7 +98,26 @@ curl -X POST http://localhost:8000/resolve-ticket \
   }'
 ```
 
-**Response:**
+**Response (Flat MCP JSON):**
+```json
+{
+  "answer": "Based on the documentation, you need to reset your password. Please check your email for reset instructions.",
+  "references": ["Domain Access Guide", "Password Reset"],
+  "action_required": "contact_customer"
+}
+```
+
+#### Debug Endpoint (Internal Use)
+**POST** `/resolve-ticket/debug`
+```bash
+curl -X POST http://localhost:8000/resolve-ticket/debug \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ticket_text": "I cannot access my domain, it says invalid password"
+  }'
+```
+
+**Response (Envelope Format):**
 ```json
 {
   "success": true,

@@ -3,12 +3,11 @@ import sys
 import os
 import logging
 import traceback
+from llm import LLMService, MCPResponse
+from exceptions import LLMProviderError, MCPOutputError
 
 # Add src directory to path so we can import our modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-from llm import LLMService, MCPResponse
-from exceptions import LLMProviderError, MCPOutputError
 
 logging.basicConfig(
     level=logging.INFO,

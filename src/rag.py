@@ -7,7 +7,7 @@ import os
 from typing import List, Dict, Tuple
 import logging
 import sys
-from exceptions import IndexNotReadyError, IndexLoadError, QueryFormatError, DocumentFormatError, DocumentNotFoundError
+from exceptions import IndexNotReadyError, QueryFormatError, DocumentFormatError, DocumentNotFoundError
 from models import EmbeddingModel
 
 logger = logging.getLogger(__name__)
@@ -24,8 +24,8 @@ class RAGPipeline:
         self.rebuild_index = settings.rebuild_index
         
         # Convert relative paths to absolute paths
-        current_dir = os.path.dirname(os.path.abspath(__file__))  # src/
-        project_root = os.path.dirname(current_dir)  # project root
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(current_dir)
         
         # Handle index_dir
         if not os.path.isabs(settings.index_dir):
@@ -46,8 +46,8 @@ class RAGPipeline:
         # If it's a relative path, make it absolute relative to project root
         if not os.path.isabs(docs_path):
             # Get the project root directory (two levels up from src/)
-            current_dir = os.path.dirname(os.path.abspath(__file__))  # src/
-            project_root = os.path.dirname(current_dir)  # project root
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(current_dir)
             docs_path = os.path.join(project_root, docs_path)
         
         try:

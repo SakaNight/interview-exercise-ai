@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from collections import defaultdict, deque
 from rag import RAGPipeline
 from llm import LLMService, MCPResponse
-from exceptions import (ValidationError, LLMRetryError, MCPOutputError)
+from exceptions import ValidationError, LLMRetryError, MCPOutputError
 from settings import settings
 
 # Configure logging
@@ -142,7 +142,6 @@ performance_metrics = PerformanceMetrics()
 
 # Simple token validation for development mode
 async def verify_reindex_token(token: str = Header(..., alias="X-Reindex-Token")):
-    """Verify reindex token (simple development mode protection)"""
     # In production, this should be a proper JWT or API key validation
     expected_token = "dev-reindex-2025"
     if token != expected_token:
@@ -154,7 +153,6 @@ async def verify_reindex_token(token: str = Header(..., alias="X-Reindex-Token")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     logger.info("Starting up Ticket Resolution API...")
     
     # Initialize RAG pipeline
@@ -180,9 +178,7 @@ async def lifespan(app: FastAPI):
     logger.info("API startup completed successfully")
     yield
     
-    # Shutdown
     logger.info("Shutting down Ticket Resolution API...")
-    # Cleanup if needed
     logger.info("API shutdown completed")
 
 # Create FastAPI app
@@ -432,8 +428,8 @@ async def rebuild_index(token: str = Depends(verify_reindex_token)):
             detail=f"Failed to rebuild index: {str(e)}"
         )
 
-# Resolve ticket endpoint
-@app.post("/resolve-ticket", response_model=TicketResponse)
+# Resolve ticket endpoint - returns flat MCP JSON as per requirements
+@app.post("/resolve-ticket", response_model=MCPResponse)
 async def resolve_ticket_endpoint(ticket: TicketRequest):
     start_time = time.time()
     
@@ -463,11 +459,67 @@ async def resolve_ticket_endpoint(ticket: TicketRequest):
         logger.info("Generating LLM response...")
         response = llm_service.generate_response(ticket.ticket_text, context_docs)
         
+        logger.info("Ticket resolution completed.")
+        return response
+        
+    except (ValidationError, MCPOutputError) as e:
+        logger.error(f"Validation error: {e}")
+        raise HTTPException(
+            status_code=422,
+            detail=f"Response validation failed: {str(e)}"
+        )
+        
+    except LLMRetryError as e:
+        logger.error(f"LLM retry error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"LLM service temporarily unavailable: {str(e)}"
+        )
+        
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error. Please try again later."
+        )
+
+# Debug endpoint 
+@app.post("/resolve-ticket/debug", response_model=TicketResponse)
+async def resolve_ticket_debug_endpoint(ticket: TicketRequest):
+    start_time = time.time()
+    
+    try:
+        # Validate services are available
+        if not rag_pipeline or not llm_service:
+            raise HTTPException(
+                status_code=503, 
+                detail="Service not available. Please try again later."
+            )
+        
+        logger.info(f"Processing ticket (debug): {ticket.ticket_text[:100]}...")
+        
+        # Search for relevant documents
+        logger.info("Searching for relevant documents...")
+        relevant_docs = rag_pipeline.search(ticket.ticket_text, k=settings.top_k)
+        
+        if not relevant_docs:
+            logger.warning("No relevant documents found")
+            context_docs = []
+        else:
+            # Extract document data from search results
+            context_docs = [doc for _, _, doc in relevant_docs]
+            logger.info(f"Found {len(context_docs)} relevant documents")
+        
+        # Generate structured response
+        logger.info("Generating LLM response...")
+        response = llm_service.generate_response(ticket.ticket_text, context_docs)
+        
         # Calculate processing time
         processing_time = time.time() - start_time
         
         logger.info(f"Ticket resolution completed successfully in {processing_time:.2f}s")
         
+        # Return envelope format for debugging
         return TicketResponse(
             success=True,
             data=response,
@@ -476,7 +528,6 @@ async def resolve_ticket_endpoint(ticket: TicketRequest):
         )
         
     except (ValidationError, MCPOutputError) as e:
-        # JSON validation or parsing errors
         processing_time = time.time() - start_time
         logger.error(f"Validation error: {e}")
         raise HTTPException(
@@ -485,7 +536,6 @@ async def resolve_ticket_endpoint(ticket: TicketRequest):
         )
         
     except LLMRetryError as e:
-        # LLM retry errors
         processing_time = time.time() - start_time
         logger.error(f"LLM retry error: {e}")
         raise HTTPException(
@@ -494,7 +544,6 @@ async def resolve_ticket_endpoint(ticket: TicketRequest):
         )
         
     except Exception as e:
-        # Unexpected errors
         processing_time = time.time() - start_time
         logger.error(f"Unexpected error: {e}")
         raise HTTPException(
