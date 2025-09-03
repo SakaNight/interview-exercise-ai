@@ -1,17 +1,112 @@
 # AI Knowledge Assistant for Support Team
 
-## Introduction
-This project builds an AI assistant for supporting customer tickets responding based on the relevant supporting documents. It uses a **Retrieval-Augmented Generation (RAG)** pipeline powered by an **LLM** and follow the **Model Context Protocol (MCP)** to produce structured output.
+> **MCP-compliant RAG assistant for customer tickets → structured JSON with citations & actions (FastAPI + FAISS + GPT-4o-mini).**
 
-> **One-Click Setup**: Clone, configure `.env`, and run `docker-compose --profile dev up --build` to get a fully working system.
+## What This Does
+
+**Input**: Customer support ticket text
+**Output**: Structured JSON response with answer, document references, and action required
+
+```bash
+# One-Click Setup
+git clone <repo> && cd interview-exercise-ai
+echo "OPENAI_API_KEY=your_key_here" > .env
+docker-compose --profile dev up --build
+
+# Test it
+curl -X POST http://localhost:8000/resolve-ticket \
+  -H "Content-Type: application/json" \
+  -d '{"ticket_text": "I forgot my password"}'
+```
+
+**Expected Response:**
+```json
+{
+  "answer": "Please check your email for password reset instructions.",
+  "references": [{"doc_id": "doc_001", "title": "Password Reset Guide", "section": "Email Instructions", "url": null}],
+  "action_required": "contact_customer"
+}
+```
+
+## Quick Start
+
+### Prerequisites
+- Python 3.8+
+- OpenAI API key
+
+### Environment Variables
+Create `.env` file with required variables:
+
+```bash
+# Required
+OPENAI_API_KEY=your_actual_api_key_here
+
+# Optional (defaults provided)
+DEBUG_TOKEN=dev-debug-2025
+REINDEX_TOKEN=dev-reindex-2025
+```
+
+### Local Development
+```bash
+git clone <repo>
+pip install -r requirements.txt
+# If you don't have .env yet, create it from the template above
+python src/main.py
+```
+
+### API Server
+```bash
+cd src
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Quick Test
+Test the API with a simple support ticket:
+
+```bash
+# Flat MCP JSON
+curl -sX POST http://localhost:8000/resolve-ticket \
+  -H "Content-Type: application/json" \
+  -d '{"ticket_text": "I forgot my password"}' | jq
+
+# Debug envelope (requires DEBUG token)
+curl -sX POST http://localhost:8000/resolve-ticket/debug \
+  -H "Content-Type: application/json" \
+  -H "X-Debug-Token: ${DEBUG_TOKEN:-dev-debug-2025}" \
+  -d '{"ticket_text":"How to transfer my domain?"}' | jq
+```
+
+**Expected Response:**
+```json
+{
+  "answer": "Please check your email for password reset instructions.",
+  "references": [
+    {
+      "doc_id": "doc_001",
+      "title": "Password Reset Guide",
+      "section": "Email Instructions",
+      "url": null
+    }
+  ],
+  "action_required": "contact_customer"
+}
+```
+
+## Project at a Glance
+
+- `src/main.py` – FastAPI entry point and routing
+- `src/rag.py` – Document loading, vectorization, FAISS retrieval
+- `src/llm.py` – MCP prompt, JSON validation and retry logic
+- `src/settings.py` – Configuration and validation (Pydantic)
+- `src/tests/` – Offline unit tests and golden cases
+- `docs/SELF_CHECK.md` – Self-check scripts and validation commands
 
 ## Tech Stack and Design Explanation
-- **Languages & API**: Python + FastAPI
-The combination is light-weighted, high-performance, integrated with OpenAPI, suitable for quick development and testing
-- **Embedding Models**: sentence-transformers/all-MiniLM-L6-v2 (baseline, fast, widely used), BAAI/bge-small-en-v1.5 (better quality, same dimension = 384)
-- **Vector Store**: FAISS (lightweight, file persistence). Future switch/extent to Qdrant (metadata filtering & clustering)
+- **Languages & API**: Python + FastAPI (lightweight, high-performance, OpenAPI integrated)
+- **Embedding Models**: sentence-transformers/all-MiniLM-L6-v2 (fast, widely used, 384 dimensions)
+- **Vector Store**: FAISS (lightweight, file persistence)
 - **LLMs**: OpenAI gpt-4o-mini (temperature 0 for deterministic JSON)
-- **Configuration Management**: Pydantic Settings to manage all the models, index, API keys etc. for easy switch
+- **Configuration Management**: Pydantic Settings for models, index, API keys management
 
 ## Configuration
 - **Allowed Actions**: The system supports four action types for customer support tickets:
@@ -49,7 +144,7 @@ Your task is to:
   "references": [
     {
       "doc_id": "string (required) - Document ID from the provided context",
-      "title": "string (required) - Document title from the provided context", 
+      "title": "string (required) - Document title from the provided context",
       "section": "string (required) - Document section from the provided context",
       "url": "string (optional) - URL if available, null otherwise"
     }
@@ -64,7 +159,8 @@ Your task is to:
 - **Error Handling**: Comprehensive validation with detailed error reporting
 - **Service-Side Fallback**: Robust retry logic for rate limits, timeouts, and validation failures
 
-## Project Structure
+<details>
+<summary>Detailed Project Structure</summary>
 
 ```
 interview-exercise-ai/
@@ -77,11 +173,13 @@ interview-exercise-ai/
 │   │   ├── __init__.py          # Test package initialization
 │   │   ├── api_tests.py         # API endpoint tests with mocked services
 │   │   ├── conftest.py          # Pytest configuration and fixtures
+│   │   ├── endpoint_test.py     # Endpoint comparison and demonstration script
 │   │   ├── golden_cases_test.py # Golden cases regression tests for core functionality
 │   │   ├── llm_tests.py         # LLM service functionality tests
 │   │   └── rag_tests.py         # RAG pipeline integration tests
 │   ├── exceptions.py            # Custom exception hierarchy
 │   ├── llm.py                   # LLM service with MCP-compliant prompt design
+│   ├── logging_config.py        # Logging configuration with desensitization
 │   ├── main.py                  # FastAPI application and endpoints
 │   ├── models.py                # ML model abstractions (embedding, LLM)
 │   ├── rag.py                   # RAG pipeline implementation
@@ -90,6 +188,7 @@ interview-exercise-ai/
 │   └── workflows/               # CI/CD pipeline definitions
 │       └── test.yml             # Automated testing workflow
 ├── docs/                        # Documentation
+│   ├── ENDPOINTS.md             # Detailed API endpoint documentation
 │   └── SELF_CHECK.md            # Developer self-check scripts and tests
 ├── index/                       # Vector index storage
 │   └── faiss_index.bin          # FAISS vector index file
@@ -103,9 +202,10 @@ interview-exercise-ai/
 ├── Dockerfile                   # Container image definition
 ├── nginx.conf                   # Nginx reverse proxy configuration
 ├── README.md                    # Project documentation
-├── READMETC.md                  # Technical challenge requirements
 └── requirements.txt             # Python dependencies
 ```
+
+</details>
 
 ### **Core Components**
 
@@ -116,6 +216,7 @@ interview-exercise-ai/
 | **LLM Service** | `llm.py` | MCP-compliant prompt design, JSON validation, retry logic |
 | **Model Abstractions** | `models.py` | Embedding and LLM model wrappers for provider flexibility |
 | **Configuration** | `settings.py` | Pydantic-based settings management with environment variables |
+| **Logging** | `logging_config.py` | Logging configuration with desensitization for security |
 | **Exception Handling** | `exceptions.py` | Custom exception hierarchy for different error types |
 | **Test Suite** | `tests/` | Comprehensive testing with mocked services and fixtures |
 
@@ -138,246 +239,144 @@ Docker Container
 └── Performance Monitoring
 ```
 
-## Quick Start
+## API Endpoints
 
-### Prerequisites
-- Python 3.8+
-- OpenAI API key
+| Endpoint | Method | Purpose | Authentication |
+|----------|--------|---------|----------------|
+| `/` | GET | Health check and system status | None |
+| `/resolve-ticket` | POST | Resolve customer support tickets | None |
+| `/resolve-ticket/debug` | POST | Debug endpoint with detailed logs | None |
+| `/documents` | GET | List all available documents | X-Debug-Token |
+| `/reindex` | POST | Rebuild FAISS vector index | X-Reindex-Token |
+| `/metrics` | GET | Performance and system metrics | None |
+| `/metrics/endpoints` | GET | List all monitored endpoints | None |
 
-### Local Development
-```bash
-git clone <repo>
-pip install -r requirements.txt
-cp .env.example .env
-python src/main.py
-```
+<details>
+<summary>Complete API Examples</summary>
 
-### API Server
-```bash
-cd src
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
-
-
-### API Endpoints
-
-#### Health Check
-**GET** `/`
+### Health Check
 ```bash
 curl http://localhost:8000/
 ```
 
-**Response:**
-```json
-{
-  "message": "Ticket Resolution API",
-  "version": "1.0.0",
-  "status": "healthy",
-  "performance": {
-    "uptime_seconds": 1234.56,
-    "total_requests": 42,
-    "avg_response_time": 0.0456
-  }
-}
-```
-
-#### Resolve Support Ticket
-**POST** `/resolve-ticket`
+### Resolve Ticket
 ```bash
 curl -X POST http://localhost:8000/resolve-ticket \
   -H "Content-Type: application/json" \
-  -d '{
-    "ticket_text": "I cannot access my domain, it says invalid password"
-  }'
+  -d '{"ticket_text": "I cannot access my domain"}'
 ```
 
-**Response (MCP):**
-```json
-{
-  "answer": "Based on the documentation, you need to reset your password. Please check your email for reset instructions.",
-  "references": [
-    {
-      "doc_id": "doc_001",
-      "title": "Domain Access Guide",
-      "section": "Password Management",
-      "url": null
-    },
-    {
-      "doc_id": "doc_002", 
-      "title": "Password Reset",
-      "section": "Reset Process",
-      "url": null
-    }
-  ],
-  "action_required": "contact_customer"
-}
-```
-
-#### Debug Endpoint (Internal Use)
-**POST** `/resolve-ticket/debug`
+### Debug Endpoint
 ```bash
 curl -X POST http://localhost:8000/resolve-ticket/debug \
   -H "Content-Type: application/json" \
-  -d '{
-    "ticket_text": "I cannot access my domain, it says invalid password"
-  }'
+  -d '{"ticket_text": "Domain access issue"}'
 ```
 
-**Response (Envelope Format):**
-```json
-{
-  "success": true,
-  "data": {
-    "answer": "Based on the documentation, you need to reset your password. Please check your email for reset instructions.",
-    "references": [
-      {
-        "doc_id": "doc_001",
-        "title": "Domain Access Guide",
-        "section": "Password Management",
-        "url": null
-      },
-      {
-        "doc_id": "doc_002", 
-        "title": "Password Reset",
-        "section": "Reset Process",
-        "url": null
-      }
-    ],
-    "action_required": "contact_customer"
-  },
-  "processing_time": 1.234,
-  "documents_retrieved": 2
-}
-```
-
-## Docker Deployment
-
-### One-Click Setup & Verification
-
-**1. Clone and Start:**
+### Internal Endpoints (with tokens)
 ```bash
-git clone <repo>
-cd interview-exercise-ai
-cp .env.example .env  # Edit with your OpenAI API key
-docker-compose --profile dev up --build
+# List documents
+curl -H "X-Debug-Token: dev-debug-2025" http://localhost:8000/documents
+
+# Rebuild index
+curl -X POST -H "X-Reindex-Token: dev-reindex-2025" http://localhost:8000/reindex
 ```
 
-**2. Wait for startup (30-60 seconds), then verify:**
-
-```bash
-# Health check
-curl http://localhost:8000/ | jq
-
-# Test main endpoint (should return flat MCP JSON)
-curl -X POST http://localhost:8000/resolve-ticket \
-  -H "Content-Type: application/json" \
-  -d '{"ticket_text":"My domain was suspended and I did not get any notice."}' | jq
-
-# Test debug endpoint (should return envelope format)
-curl -X POST http://localhost:8000/resolve-ticket/debug \
-  -H "Content-Type: application/json" \
-  -d '{"ticket_text":"How to transfer my domain?"}' | jq
-
-# Test performance metrics
-curl http://localhost:8000/metrics | jq
-```
-
-**Expected Results:**
-- Health check returns `{"status": "healthy"}`
-- Main endpoint returns flat MCP JSON with `answer`, `references`, `action_required`
-- Debug endpoint returns envelope with `processing_time` and `documents_retrieved`
-- Metrics endpoint returns performance statistics
-
-### Production Deployment
-
-```bash
-docker-compose --profile prod up --build
-```
+</details>
 
 ## Testing
 
-### Test Structure
+[![CI](https://github.com/SakaNight/interview-exercise-ai/actions/workflows/test.yml/badge.svg)](https://github.com/SakaNight/interview-exercise-ai/actions/workflows/test.yml)
 
-The project includes comprehensive tests organized into different modules:
+**Testing Note:** All 24 unit/regression tests run offline with mocked services, ensuring stable CI/CD without external dependencies.
 
-- **API Tests** (`tests/api_tests.py`): Endpoint testing with mocked services
-- **Golden Cases Tests** (`tests/golden_cases_test.py`): Regression tests for core functionality and critical user scenarios
-- **LLM Tests** (`tests/llm_tests.py`): LLM service functionality testing
-- **RAG Tests** (`tests/rag_tests.py`): RAG pipeline testing
-- **Integration Tests**: End-to-end functionality testing
-
-**Run All Tests:**
 ```bash
 cd src
 python -m pytest tests/ -v
 ```
 
-**Run Golden Cases Tests:**
+<details>
+<summary>Test Details</summary>
+
+### Test Structure
+- **API Tests**: 8 tests - Endpoint testing with mocked services
+- **Golden Cases**: 6 tests - Regression tests for core functionality
+- **LLM Tests**: 4 tests - LLM service functionality testing
+- **RAG Tests**: 6 tests - RAG pipeline testing
+
+### Run Specific Tests
 ```bash
-cd src
+# Golden cases regression tests
 python -m pytest tests/golden_cases_test.py -v
+
+# API endpoint tests
+python -m pytest tests/api_tests.py -v
+
+# All tests with coverage
+python -m pytest tests/ -v --cov=.
 ```
 
-**Example Output:**
+</details>
+
+## Docker Deployment
+
+### Development
 ```bash
-=========================================== test session starts ============================================
-platform darwin -- Python 3.12.4, pytest-7.4.4, pluggy-1.0.0
-collected 11 items                                                                                         
-
-src/tests/golden_cases_test.py::test_golden_case_regression[My domain was suspended and I didn't get any notice. This is unfair!-escalate_to_abuse_team-suspension|abuse|policy] PASSED [  9%]
-src/tests/golden_cases_test.py::test_golden_case_regression[I need to update my WHOIS information for my domain-none-whois|update] PASSED [ 18%]
-src/tests/golden_cases_test.py::test_golden_case_regression[I want a refund for my domain renewal. I was charged twice.-escalate_to_support-renewal|billing|refund] PASSED [ 27%]
-src/tests/golden_cases_test.py::test_golden_case_regression[My domain is not resolving. DNS not working after nameserver change.-none-dns|nameserver|propagation] PASSED [ 36%]
-src/tests/golden_cases_test.py::test_golden_case_regression[How do I transfer my domain to another registrar?-none-transfer|epp|auth] PASSED [ 45%]
-src/tests/golden_cases_test.py::test_golden_case_regression[Hola, mi dominio no funciona. ¿Pueden ayudarme?-contact_customer-dns|nameserver|info] PASSED [ 54%]
-src/tests/golden_cases_test.py::test_golden_case_regression[Complex technical issue with advanced DNS configuration not covered in docs-escalate_to_support-dns|technical|configuration] PASSED [ 63%]
-src/tests/golden_cases_test.py::test_golden_case_regression[Someone is using my domain for spam and phishing attacks-escalate_to_abuse_team-abuse|spam|security] PASSED [ 72%]
-src/tests/golden_cases_test.py::test_golden_case_response_times PASSED                               [ 81%]
-src/tests/golden_cases_test.py::test_golden_case_consistency PASSED                                  [ 90%]
-src/tests/golden_cases_test.py::test_golden_case_load PASSED                                         [100%]
-
-====================================== 11 passed, 7 warnings in 5.03s ======================================
+docker-compose --profile dev up --build
 ```
 
-### Golden Cases Regression Tests
+### Production
+```bash
+docker-compose --profile prod up --build
+```
 
-The `golden_cases_test.py` file contains critical regression tests that validate core functionality remains intact after code changes. These tests serve as a safety net for key user scenarios:
+## Troubleshooting
 
-**Test Categories:**
-- **Domain Suspension Cases**: Verify escalation to abuse team for policy violations
-- **WHOIS Update Cases**: Ensure direct handling of domain management requests
-- **Billing/Refund Cases**: Validate escalation to support team for payment issues
-- **DNS Resolution Cases**: Test direct handling of technical DNS problems
-- **Domain Transfer Cases**: Verify proper guidance for domain transfers
-- **Non-English Queries**: Ensure appropriate handling of international customers
-- **Technical Complexity**: Validate escalation for advanced technical issues
-- **Abuse/Spam Cases**: Verify escalation to abuse team for security concerns
+- If model download/cache fails locally (permission errors), set `HF_HOME` to a writable directory or run via Docker.
+- If `/reindex`/`/documents` return 401, ensure you pass `X-Reindex-Token` / `X-Debug-Token`.
 
-**Test Features:**
-- **Response Time Validation**: Ensures API responses complete within reasonable time limits
-- **Consistency Testing**: Verifies identical queries return consistent results
-- **Load Testing**: Validates system stability under multiple concurrent requests
-- **MCP Structure Validation**: Ensures responses follow the correct Model Context Protocol format
-- **Reference Quality**: Validates that returned references contain relevant keywords
+## Configuration
 
-**Mocked Services**: These tests use mocked RAG pipeline and LLM services to ensure fast, reliable execution without external dependencies.
+### Allowed Actions
+- `none`: Sufficient information provided
+- `escalate_to_support`: Complex technical issue
+- `escalate_to_abuse_team`: Security/abuse concerns
+- `contact_customer`: Need additional information
 
-### Developer Self-Check
+### Key Settings
+- **Max References**: 3 document references per response
+- **Top K Results**: 3 most relevant documents retrieved
+- **Temperature**: 0 for deterministic JSON output
 
-For additional developer self-check scripts (load testing, JSON compliance checks, debug endpoints), see [docs/SELF_CHECK.md](docs/SELF_CHECK.md).
+## Documentation
+
+- **[API Endpoints](docs/ENDPOINTS.md)** - Complete endpoint documentation with examples
+- **[Self-Check Guide](docs/SELF_CHECK.md)** - Developer testing and validation scripts
+
+## Future Work
+
+- Add authentication and rate limiting
+- Implement caching for improved performance
+- Multilingual support (BAAI/bge-m3)
+- Hybrid retrieval (FAISS + BM25)
+- Monitoring with Prometheus/Grafana
 
 ## License & Credits
 
 ### Embedding Models
-- **sentence-transformers/all-MiniLM-L6-v2**: [Apache 2.0](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2)
-- **BAAI/bge-small-en-v1.5**: [MIT](https://huggingface.co/BAAI/bge-small-en-v1.5)
+- **sentence-transformers/all-MiniLM-L6-v2**: Fast, efficient sentence embeddings
 
 ### Vector Store
-- **FAISS**: [MIT](https://github.com/facebookresearch/faiss/blob/main/LICENSE)
-- **Qdrant** (future): [Apache 2.0](https://github.com/qdrant/qdrant/blob/master/LICENSE)
+- **FAISS**: Facebook AI Similarity Search for efficient vector operations
 
 ### LLM
-- **OpenAI GPT-4o-mini**: [OpenAI Terms of Service](https://openai.com/policies/terms-of-use)
+- **OpenAI GPT-4o-mini**: Large language model for text generation
+
+### Code Style
+- **Black**: Code formatting
+- **isort**: Import sorting
+- **Ruff**: Fast Python linter
+- **pytest**: Testing framework
 
 ### Project License
-MIT License © 2025 [AriesChen](https://github.com/sakanight)
+MIT License © 2025 [AriesChen](https://github.com/SakaNight)
