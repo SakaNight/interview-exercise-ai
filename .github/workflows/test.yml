@@ -12,13 +12,13 @@ jobs:
 
     strategy:
       matrix:
-        python-version: [3.9, 3.10, 3.11, 3.12]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
 
     steps:
     - uses: actions/checkout@v4
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -34,18 +34,26 @@ jobs:
         black --check src/
         isort --check-only src/
 
-    - name: Run tests
+    - name: Run all tests
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || 'test-key' }}
+        DEBUG_TOKEN: 'test-debug-token'
+        REINDEX_TOKEN: 'test-reindex-token'
       run: |
         cd src
-        python -m pytest tests/api_tests.py -v --tb=short
+        python -m pytest tests/ -v --tb=short
 
     - name: Run tests with coverage
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || 'test-key' }}
+        DEBUG_TOKEN: 'test-debug-token'
+        REINDEX_TOKEN: 'test-reindex-token'
       run: |
         cd src
-        python -m pytest tests/api_tests.py --cov=. --cov-report=xml
+        python -m pytest tests/ --cov=. --cov-report=xml
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         file: ./src/coverage.xml
         fail_ci_if_error: false

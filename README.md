@@ -31,7 +31,7 @@ curl -X POST http://localhost:8000/resolve-ticket \
 ## Quick Start
 
 ### Prerequisites
-- Python 3.8+
+- Python 3.9+
 - OpenAI API key
 
 ### Environment Variables
