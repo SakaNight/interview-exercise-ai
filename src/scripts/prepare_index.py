@@ -11,6 +11,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 from rag import RAGPipeline
 from settings import settings
@@ -27,7 +28,7 @@ logging.basicConfig(
 logger = logging.getLogger("prepare_index")
 
 
-def resolve_path(p: str | None, default_from_settings: str) -> str:
+def resolve_path(p: Optional[str], default_from_settings: str) -> str:
     """Resolve relative paths to absolute paths.
 
     Args:

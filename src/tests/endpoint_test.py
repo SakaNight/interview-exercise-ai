@@ -12,7 +12,7 @@ from typing import Any
 import requests
 
 
-def test_endpoint(url: str, endpoint: str, data: dict[str, Any]) -> dict[str, Any]:
+def _test_endpoint(url: str, endpoint: str, data: dict[str, Any]) -> dict[str, Any]:
     """Test an endpoint and return the response."""
     try:
         response = requests.post(f"{url}{endpoint}", json=data, timeout=30)
@@ -37,7 +37,7 @@ def main():
     # Test main endpoint
     print("1. MAIN ENDPOINT (/resolve-ticket)")
     print("-" * 50)
-    main_response = test_endpoint(base_url, "/resolve-ticket", test_data)
+    main_response = _test_endpoint(base_url, "/resolve-ticket", test_data)
 
     if main_response:
         print("✓ Status: SUCCESS")
@@ -68,7 +68,7 @@ def main():
     # Test debug endpoint
     print("2. DEBUG ENDPOINT (/resolve-ticket/debug)")
     print("-" * 50)
-    debug_response = test_endpoint(base_url, "/resolve-ticket/debug", test_data)
+    debug_response = _test_endpoint(base_url, "/resolve-ticket/debug", test_data)
 
     if debug_response:
         print("✓ Status: SUCCESS")

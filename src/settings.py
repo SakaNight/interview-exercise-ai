@@ -7,6 +7,7 @@ application settings including model configurations, API settings, and paths.
 """
 
 import os
+from typing import Optional
 
 from dotenv import load_dotenv
 from pydantic import Field, field_validator
@@ -81,7 +82,7 @@ class Settings(BaseSettings):
     api_host: str = Field(
         default="https://api.openai.com/v1", description="OpenAI API host URL"
     )
-    api_key: str | None = Field(
+    api_key: Optional[str] = Field(
         default=None, description="OpenAI API key (loaded from environment)"
     )
     api_port: int = Field(default=8000, description="Port for the FastAPI server")
