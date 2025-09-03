@@ -30,7 +30,6 @@ jobs:
     - name: Run code formatting checks
       run: |
         ruff check src/
-        ruff format --check src/
         black --check src/
         isort --check-only src/
 

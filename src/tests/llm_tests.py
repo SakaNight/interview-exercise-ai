@@ -82,9 +82,9 @@ def run_llm_tests():
     total = len(tests)
 
     for test_name, test_func in tests:
-        logger.info(f"\n{'='*50}")
+        logger.info(f"\n{'=' * 50}")
         logger.info(f"Running: {test_name}")
-        logger.info(f"{'='*50}")
+        logger.info(f"{'=' * 50}")
 
         try:
             if test_func():
@@ -96,9 +96,9 @@ def run_llm_tests():
             logger.error(f"{test_name}: ERROR - {e}")
             traceback.print_exc()
 
-    logger.info(f"\n{'='*50}")
+    logger.info(f"\n{'=' * 50}")
     logger.info(f"Test Results: {passed}/{total} tests passed")
-    logger.info(f"{'='*50}")
+    logger.info(f"{'=' * 50}")
 
     if passed == total:
         logger.info("Core functionality is working correctly.")

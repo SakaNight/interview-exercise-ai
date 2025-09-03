@@ -77,10 +77,10 @@ def create_mock_context_docs(count: int = 2) -> list:
     for i in range(count):
         docs.append(
             {
-                "title": f"Test Document {i+1}",
-                "section": f"Test Section {i+1}",
-                "content": f"This is test content for document {i+1}",
-                "ref": f"test-doc-{i+1}",
+                "title": f"Test Document {i + 1}",
+                "section": f"Test Section {i + 1}",
+                "content": f"This is test content for document {i + 1}",
+                "ref": f"test-doc-{i + 1}",
             }
         )
     return docs

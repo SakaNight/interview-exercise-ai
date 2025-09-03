@@ -173,12 +173,12 @@ def generate_test_documents():
         for i in range(count):
             docs.append(
                 {
-                    "title": f"{title_prefix} {i+1}",
-                    "section": f"Section {i+1}",
-                    "content": f"Test content for document {i+1}. "
+                    "title": f"{title_prefix} {i + 1}",
+                    "section": f"Section {i + 1}",
+                    "content": f"Test content for document {i + 1}. "
                     * (content_length // 30),
-                    "ref": f"test-ref-{i+1}",
-                    "tags": [f"tag{i+1}", f"category{i+1}"],
+                    "ref": f"test-ref-{i + 1}",
+                    "tags": [f"tag{i + 1}", f"category{i + 1}"],
                 }
             )
         return docs
