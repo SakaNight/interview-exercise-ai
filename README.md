@@ -32,7 +32,7 @@ curl -X POST http://localhost:8000/resolve-ticket \
 
 ### Prerequisites
 - Python 3.9+
-- OpenAI API key
+- OpenAI API keyhaiyoude
 
 ### Environment Variables
 Create `.env` file with required variables:
@@ -166,41 +166,17 @@ Your task is to:
 interview-exercise-ai/
 ├── src/                         # Source code directory
 │   ├── data/                    # Data and configuration files
-│   │   └── docs.json            # Knowledge base documents (JSON format)
-│   ├── scripts/                 # Utility and setup scripts
-│   │   └── prepare_index.py     # Index preparation and management script
-│   ├── tests/                   # Test suite
-│   │   ├── __init__.py          # Test package initialization
-│   │   ├── api_tests.py         # API endpoint tests with mocked services
-│   │   ├── conftest.py          # Pytest configuration and fixtures
-│   │   ├── endpoint_test.py     # Endpoint comparison and demonstration script
-│   │   ├── golden_cases_test.py # Golden cases regression tests for core functionality
-│   │   ├── llm_tests.py         # LLM service functionality tests
-│   │   └── rag_tests.py         # RAG pipeline integration tests
-│   ├── exceptions.py            # Custom exception hierarchy
+│   ├── scripts/                 # Utility and setup scripts (index preparation)
+│   ├── tests/                   # Unit and integration tests
+│   ├── exceptions.py            # Custom exception classes
 │   ├── llm.py                   # LLM service with MCP-compliant prompt design
-│   ├── logging_config.py        # Logging configuration with desensitization
 │   ├── main.py                  # FastAPI application and endpoints
 │   ├── models.py                # ML model abstractions (embedding, LLM)
 │   ├── rag.py                   # RAG pipeline implementation
 │   └── settings.py              # Configuration management with Pydantic
 ├── .github/                     # GitHub workflows and templates
-│   └── workflows/               # CI/CD pipeline definitions
-│       └── test.yml             # Automated testing workflow
-├── docs/                        # Documentation
-│   ├── ENDPOINTS.md             # Detailed API endpoint documentation
-│   └── SELF_CHECK.md            # Developer self-check scripts and tests
-├── index/                       # Vector index storage
-│   └── faiss_index.bin          # FAISS vector index file
-├── .cache/                      # Cache directories (gitignored)
-│   └── hf/                      # Hugging Face model cache
-├── .dockerignore                # Docker build context exclusions
-├── .env                         # Environment variables (gitignored)
-├── .env.example                 # Environment variables template
-├── .gitignore                   # Git ignore rules for Python/AI projects
 ├── docker-compose.yml           # Multi-environment Docker orchestration
 ├── Dockerfile                   # Container image definition
-├── nginx.conf                   # Nginx reverse proxy configuration
 ├── README.md                    # Project documentation
 └── requirements.txt             # Python dependencies
 ```
